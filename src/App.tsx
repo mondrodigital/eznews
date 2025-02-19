@@ -4,11 +4,9 @@ import { useNews } from './lib/hooks/useNews';
 import { TimeSlot } from './lib/types';
 import { initializeMockData } from './lib/mock-data';
 
-// Initialize mock data in development
-if (import.meta.env.DEV) {
-  console.log('Development mode detected');
-  initializeMockData();
-}
+// Initialize mock data
+console.log('Initializing mock data...');
+initializeMockData();
 
 const categories = [
   { id: 'all', name: 'All', emoji: '🗞️' },

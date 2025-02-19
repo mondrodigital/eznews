@@ -50,7 +50,7 @@ export function initializeMockData() {
   const timeSlots: TimeSlot[] = ['10AM', '3PM', '8PM'];
   
   timeSlots.forEach(timeSlot => {
-    const existingData = localStorage.getItem(`news:${timeSlot}`);
+    const existingData = localStorage.getItem(`news_${timeSlot}.json`);
     if (existingData) {
       console.log(`Mock data already exists for ${timeSlot}:`, JSON.parse(existingData));
       return;
@@ -68,12 +68,8 @@ export function initializeMockData() {
 
     try {
       console.log(`Storing mock data for ${timeSlot}:`, timeBlock);
-      localStorage.setItem(`news:${timeSlot}`, JSON.stringify(timeBlock));
+      localStorage.setItem(`news_${timeSlot}.json`, JSON.stringify(timeBlock));
       console.log(`Successfully initialized mock data for ${timeSlot}`);
-      
-      // Verify the data was stored
-      const storedData = localStorage.getItem(`news:${timeSlot}`);
-      console.log(`Verified stored data for ${timeSlot}:`, JSON.parse(storedData || '{}'));
     } catch (error) {
       console.error(`Failed to initialize mock data for ${timeSlot}:`, error);
     }

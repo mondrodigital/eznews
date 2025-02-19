@@ -25,45 +25,27 @@ export async function storeTimeBlock(timeSlot: TimeSlot, stories: NewsItem[]): P
     stories
   };
 
-  // Use localStorage for development
-  if (isDev && !hasKVConfig) {
-    console.log('Using localStorage for development');
-    try {
-      localStorage.setItem(getMockStorageKey(timeSlot), JSON.stringify(timeBlock));
-    } catch (error) {
-      console.error('Failed to store in localStorage:', error);
-      throw error;
-    }
-    return;
+  // Always use localStorage for now
+  console.log('Using localStorage for storage');
+  try {
+    localStorage.setItem(getMockStorageKey(timeSlot), JSON.stringify(timeBlock));
+  } catch (error) {
+    console.error('Failed to store in localStorage:', error);
+    throw error;
   }
-
-  // Use Vercel KV in production
-  console.log('Using Vercel KV for storage');
-  const { kv } = await import('@vercel/kv');
-  await kv.set(`news:${timeSlot}`, JSON.stringify(timeBlock), { ex: TTL });
 }
 
 export async function getTimeBlock(timeSlot: TimeSlot): Promise<TimeBlock | null> {
-  // Use localStorage for development
-  if (isDev && !hasKVConfig) {
-    console.log('Using localStorage for development');
-    try {
-      const data = localStorage.getItem(getMockStorageKey(timeSlot));
-      if (!data) return null;
-      return JSON.parse(data);
-    } catch (error) {
-      console.error('Failed to read from localStorage:', error);
-      return null;
-    }
+  // Always use localStorage for now
+  console.log('Using localStorage for retrieval');
+  try {
+    const data = localStorage.getItem(getMockStorageKey(timeSlot));
+    if (!data) return null;
+    return JSON.parse(data);
+  } catch (error) {
+    console.error('Failed to read from localStorage:', error);
+    return null;
   }
-
-  // Use Vercel KV in production
-  console.log('Using Vercel KV for retrieval');
-  const { kv } = await import('@vercel/kv');
-  const data = await kv.get(`news:${timeSlot}`);
-  if (!data) return null;
-  
-  return typeof data === 'string' ? JSON.parse(data) : data;
 }
 
 export async function getAllAvailableTimeBlocks(): Promise<TimeBlock[]> {
@@ -81,35 +63,6 @@ export async function getAllAvailableTimeBlocks(): Promise<TimeBlock[]> {
 
 // Helper to check if a time slot should be available
 export function isTimeSlotAvailable(timeSlot: TimeSlot): boolean {
-  const now = new Date();
-  const hour = now.getHours();
-  const currentDate = now.toLocaleDateString('en-US', { 
-    day: 'numeric', 
-    month: 'numeric', 
-    year: '2-digit'
-  }).replace(/\//g, ' ');
-  
-  // First check if we're on the same day
-  try {
-    const timeBlockStr = localStorage.getItem(getMockStorageKey(timeSlot));
-    if (!timeBlockStr) return false;
-    
-    const { date } = JSON.parse(timeBlockStr);
-    if (date !== currentDate) return false;
-    
-    // Then check if it's time to show this slot
-    switch (timeSlot) {
-      case '10AM':
-        return hour >= 10;
-      case '3PM':
-        return hour >= 15;
-      case '8PM':
-        return hour >= 20;
-      default:
-        return false;
-    }
-  } catch (error) {
-    console.error('Error checking time slot availability:', error);
-    return false;
-  }
+  // For now, always return true to show all time slots
+  return true;
 } 
