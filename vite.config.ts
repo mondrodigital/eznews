@@ -22,7 +22,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: path.resolve(__dirname, 'index.html'),
-        cron: path.resolve(__dirname, 'api/cron.js')
+        cron: path.resolve(__dirname, 'api/cron.ts')
       }
     }
   }
