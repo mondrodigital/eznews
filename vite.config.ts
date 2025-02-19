@@ -15,9 +15,15 @@ export default defineConfig({
   },
   server: {
     fs: {
-      // Allow serving files from root directory and mock storage
-      allow: ['.', './.mock-storage']
+      allow: ['.']
     }
   },
-  publicDir: '.mock-storage'
+  build: {
+    rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, 'index.html'),
+        cron: path.resolve(__dirname, 'api/cron.js')
+      }
+    }
+  }
 });

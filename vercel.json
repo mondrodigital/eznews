@@ -1,8 +1,24 @@
 {
-  "rewrites": [
+  "version": 2,
+  "builds": [
     {
-      "source": "/api/cron/update",
-      "destination": "/api/cron"
+      "src": "package.json",
+      "use": "@vercel/static-build",
+      "config": { "zeroConfig": true }
+    },
+    {
+      "src": "api/**/*.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/cron/update",
+      "dest": "/api/cron.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/"
     }
   ],
   "crons": [
