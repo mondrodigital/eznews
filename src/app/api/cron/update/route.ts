@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { processTimeSlot, getNextTimeSlot, shouldProcess } from '@/lib/process';
+import { processTimeSlot } from '@/lib/process';
 import { TimeSlot } from '@/lib/types';
 
 // This endpoint is called by Vercel Cron
@@ -14,22 +14,23 @@ export async function GET(request: Request) {
       );
     }
 
-    const nextTimeSlot = getNextTimeSlot();
-    
-    // Check if we should process this time slot
-    if (!shouldProcess(nextTimeSlot)) {
-      return NextResponse.json({
-        success: true,
-        message: `Not time to process ${nextTimeSlot} yet`
-      });
-    }
-
-    // Process the next time slot
-    await processTimeSlot(nextTimeSlot);
+    // Process all time slots
+    const timeSlots: TimeSlot[] = ['10AM', '3PM', '8PM'];
+    const results = await Promise.all(
+      timeSlots.map(async (timeSlot) => {
+        try {
+          await processTimeSlot(timeSlot);
+          return { timeSlot, success: true };
+        } catch (error) {
+          console.error(`Failed to process ${timeSlot}:`, error);
+          return { timeSlot, success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+        }
+      })
+    );
     
     return NextResponse.json({
       success: true,
-      message: `Successfully processed ${nextTimeSlot}`
+      results
     });
   } catch (error) {
     console.error('Automated update failed:', error);
