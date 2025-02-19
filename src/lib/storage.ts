@@ -1,31 +1,12 @@
 import { TimeBlock, TimeSlot, NewsItem } from './types';
-import fs from 'fs';
-import path from 'path';
 
 const TTL = 24 * 60 * 60; // 24 hours in seconds
 
-// Helper to check if we're in Node.js environment
-const isNode = typeof process !== 'undefined' && process.versions != null && process.versions.node != null;
-
 // Helper to check if we're in development
-const isDev = isNode || (typeof import.meta !== 'undefined' && import.meta.env?.DEV);
+const isDev = typeof import.meta !== 'undefined' && import.meta.env?.DEV;
 
 // Helper to check if we have KV config
-const hasKVConfig = !isNode && import.meta.env?.VITE_KV_REST_API_URL && import.meta.env?.VITE_KV_REST_API_TOKEN;
-
-// Mock storage directory for Node.js environment
-const MOCK_STORAGE_DIR = '.mock-storage';
-
-// Ensure mock storage directory exists in Node.js environment
-if (isNode && isDev) {
-  try {
-    if (!fs.existsSync(MOCK_STORAGE_DIR)) {
-      fs.mkdirSync(MOCK_STORAGE_DIR);
-    }
-  } catch (error) {
-    console.error('Failed to create mock storage directory:', error);
-  }
-}
+const hasKVConfig = import.meta.env?.VITE_KV_REST_API_URL && import.meta.env?.VITE_KV_REST_API_TOKEN;
 
 function getMockStorageKey(timeSlot: TimeSlot): string {
   return `news_${timeSlot}.json`;
@@ -44,19 +25,9 @@ export async function storeTimeBlock(timeSlot: TimeSlot, stories: NewsItem[]): P
     stories
   };
 
-  // Use file system for Node.js development
-  if (isNode && isDev) {
-    console.log('Using file system for Node.js development');
-    await fs.promises.writeFile(
-      `.mock-storage/${getMockStorageKey(timeSlot)}`,
-      JSON.stringify(timeBlock, null, 2)
-    );
-    return;
-  }
-
-  // Use localStorage for browser development
+  // Use localStorage for development
   if (isDev && !hasKVConfig) {
-    console.log('Using localStorage for browser development');
+    console.log('Using localStorage for development');
     try {
       localStorage.setItem(getMockStorageKey(timeSlot), JSON.stringify(timeBlock));
     } catch (error) {
@@ -73,38 +44,15 @@ export async function storeTimeBlock(timeSlot: TimeSlot, stories: NewsItem[]): P
 }
 
 export async function getTimeBlock(timeSlot: TimeSlot): Promise<TimeBlock | null> {
-  // Use file system for Node.js development
-  if (isNode && isDev) {
-    console.log('Using file system for Node.js development');
+  // Use localStorage for development
+  if (isDev && !hasKVConfig) {
+    console.log('Using localStorage for development');
     try {
-      const data = await fs.promises.readFile(
-        `.mock-storage/${getMockStorageKey(timeSlot)}`,
-        'utf-8'
-      );
+      const data = localStorage.getItem(getMockStorageKey(timeSlot));
+      if (!data) return null;
       return JSON.parse(data);
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        return null;
-      }
-      throw error;
-    }
-  }
-
-  // Use localStorage for browser development
-  if (isDev && !hasKVConfig) {
-    console.log('Using localStorage for browser development');
-    try {
-      // In browser development, fetch from .mock-storage directory
-      const response = await fetch(`/.mock-storage/${getMockStorageKey(timeSlot)}`);
-      if (!response.ok) {
-        console.error(`Failed to fetch from .mock-storage: ${response.status} ${response.statusText}`);
-        return null;
-      }
-      const data = await response.json();
-      console.log('Fetched data:', data);
-      return data;
-    } catch (error) {
-      console.error('Failed to read from .mock-storage:', error);
+      console.error('Failed to read from localStorage:', error);
       return null;
     }
   }
@@ -142,21 +90,26 @@ export function isTimeSlotAvailable(timeSlot: TimeSlot): boolean {
   }).replace(/\//g, ' ');
   
   // First check if we're on the same day
-  const timeBlock = localStorage.getItem(getMockStorageKey(timeSlot));
-  if (!timeBlock) return false;
-  
-  const { date } = JSON.parse(timeBlock);
-  if (date !== currentDate) return false;
-  
-  // Then check if it's time to show this slot
-  switch (timeSlot) {
-    case '10AM':
-      return hour >= 10;
-    case '3PM':
-      return hour >= 15;
-    case '8PM':
-      return hour >= 20;
-    default:
-      return false;
+  try {
+    const timeBlockStr = localStorage.getItem(getMockStorageKey(timeSlot));
+    if (!timeBlockStr) return false;
+    
+    const { date } = JSON.parse(timeBlockStr);
+    if (date !== currentDate) return false;
+    
+    // Then check if it's time to show this slot
+    switch (timeSlot) {
+      case '10AM':
+        return hour >= 10;
+      case '3PM':
+        return hour >= 15;
+      case '8PM':
+        return hour >= 20;
+      default:
+        return false;
+    }
+  } catch (error) {
+    console.error('Error checking time slot availability:', error);
+    return false;
   }
 } 

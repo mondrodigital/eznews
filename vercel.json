@@ -1,4 +1,10 @@
 {
+  "rewrites": [
+    {
+      "source": "/api/cron/update",
+      "destination": "/api/cron"
+    }
+  ],
   "crons": [
     {
       "path": "/api/cron/update",
