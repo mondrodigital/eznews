@@ -10,7 +10,13 @@
     },
     {
       "src": "api/**/*.ts",
-      "use": "@vercel/node"
+      "use": "@vercel/node",
+      "config": {
+        "includeFiles": [
+          "src/lib/**/*.ts"
+        ],
+        "tsconfig": "api/tsconfig.json"
+      }
     }
   ],
   "routes": [

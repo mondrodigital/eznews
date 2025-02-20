@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { NewsItem, NewsCategory, TimeSlot, CATEGORIES } from './types';
-import { fetchNewsForCategory, getUnsplashImage, NewsAPIArticle } from './news';
+import { fetchNewsForCategory, NewsAPIArticle } from './news';
 import { selectMostIntriguingArticle, rewriteArticle } from './gpt';
 import { storeTimeBlock } from './storage';
 
@@ -22,8 +22,8 @@ async function processCategory(category: NewsCategory): Promise<NewsItem> {
   console.log('Rewriting article...');
   const { headline, content } = await rewriteArticle(article, category);
   
-  // Get image (use article image or fallback to Unsplash)
-  const image = article.urlToImage || await getUnsplashImage(headline);
+  // Use the article's image directly
+  const image = article.urlToImage || 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?q=80';
   
   console.log('Processed article:', headline);
   

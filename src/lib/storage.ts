@@ -1,6 +1,6 @@
 import { TimeBlock, TimeSlot, NewsItem } from './types';
 import Redis from 'ioredis';
-import { env } from './env';
+import { serverEnv } from './server-env';
 
 const TTL = 24 * 60 * 60; // 24 hours in seconds
 
@@ -65,11 +65,11 @@ function getRedisClient(): Redis | null {
   if (isBrowser) return null;
   
   if (!redisClient) {
-    if (!env.REDIS_URL) {
+    if (!serverEnv.REDIS_URL) {
       console.warn('Redis URL not found, falling back to mock data');
       return null;
     }
-    redisClient = new Redis(env.REDIS_URL);
+    redisClient = new Redis(serverEnv.REDIS_URL);
   }
   return redisClient;
 }

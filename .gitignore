@@ -39,3 +39,4 @@ lerna-debug.log*
 
 # Development mock data
 .mock-storage
+.vercel

@@ -1,73 +1,138 @@
-import { handleCronUpdate } from '../src/api/cron';
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { processTimeSlot } from '@/lib/process';
+import { TimeSlot } from '@/lib/types';
+import { serverEnv } from '@/lib/server-env';
 
-export default async function handler(
-  request: VercelRequest,
-  response: VercelResponse
-) {
-  if (request.method !== 'GET' && request.method !== 'POST') {
-    response.status(405).json({ error: 'Method not allowed' });
-    return;
-  }
-
+export async function handleCronUpdate(req: Request) {
   try {
-    // Debug environment variables
-    console.log('Server environment check:', {
-      REDIS_URL: process.env.REDIS_URL ? 'Set' : 'Not set',
-      NEWS_API_KEY: process.env.NEWS_API_KEY ? 'Set' : 'Not set',
-      OPENAI_API_KEY: process.env.OPENAI_API_KEY ? 'Set' : 'Not set',
-      UNSPLASH_ACCESS_KEY: process.env.UNSPLASH_ACCESS_KEY ? 'Set' : 'Not set',
-      CRON_SECRET: process.env.CRON_SECRET ? 'Set' : 'Not set'
+    // Debug environment variables and request info
+    console.log('Request info:', {
+      method: req.method,
+      url: req.url,
+      headers: Object.fromEntries(req.headers.entries())
     });
 
-    // For POST requests, forward the entire request
-    if (request.method === 'POST') {
-      const result = await handleCronUpdate(new Request(request.url || '', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(request.body)
-      }));
-      
-      const { status, headers, body } = await parseResponse(result);
-      
-      Object.entries(headers).forEach(([key, value]) => {
-        response.setHeader(key, value);
-      });
-      
-      response.status(status).send(body);
-      return;
+    console.log('Environment check:', {
+      REDIS_URL: serverEnv.REDIS_URL ? 'Set' : 'Not set',
+      NEWS_API_KEY: serverEnv.NEWS_API_KEY ? 'Set' : 'Not set',
+      OPENAI_API_KEY: serverEnv.OPENAI_API_KEY ? 'Set' : 'Not set',
+      CRON_SECRET: serverEnv.CRON_SECRET ? 'Set' : 'Not set'
+    });
+
+    // Validate required environment variables
+    const requiredVars = [
+      'REDIS_URL',
+      'NEWS_API_KEY',
+      'OPENAI_API_KEY',
+      'CRON_SECRET'
+    ];
+
+    const missingVars = requiredVars.filter(varName => !serverEnv[varName as keyof typeof serverEnv]);
+    
+    if (missingVars.length > 0) {
+      const error = new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
+      console.error('Environment validation failed:', error);
+      throw error;
     }
 
-    // For GET requests (automated cron), add authorization header
-    const headers = new Headers();
-    headers.set('authorization', `Bearer ${process.env.CRON_SECRET}`);
+    // Verify the request is authorized
+    const authHeader = req.headers.get('authorization');
+    const isManualTrigger = req.method === 'POST';
     
-    const result = await handleCronUpdate(new Request(request.url || '', {
-      method: 'GET',
-      headers
-    }));
-
-    const { status, headers: responseHeaders, body } = await parseResponse(result);
-    
-    Object.entries(responseHeaders).forEach(([key, value]) => {
-      response.setHeader(key, value);
+    console.log('Auth check:', {
+      isManualTrigger,
+      hasAuthHeader: !!authHeader,
+      authHeader: authHeader ? 'Present' : 'Missing'
     });
+
+    // For manual triggers, check the secret in the body
+    if (isManualTrigger) {
+      const body = await req.json();
+      console.log('Manual trigger body:', {
+        hasSecret: !!body.secret,
+        secretMatch: body.secret === serverEnv.CRON_SECRET
+      });
+
+      if (body.secret !== serverEnv.CRON_SECRET) {
+        const error = new Error('Unauthorized - Invalid secret');
+        console.error('Auth failed:', error);
+        return new Response(
+          JSON.stringify({ error: error.message }),
+          { 
+            status: 401,
+            headers: { 'Content-Type': 'application/json' }
+          }
+        );
+      }
+    } else {
+      // For automated cron, check the bearer token
+      if (authHeader !== `Bearer ${serverEnv.CRON_SECRET}`) {
+        const error = new Error('Unauthorized - Invalid token');
+        console.error('Auth failed:', error);
+        return new Response(
+          JSON.stringify({ error: error.message }),
+          { 
+            status: 401,
+            headers: { 'Content-Type': 'application/json' }
+          }
+        );
+      }
+    }
+
+    // Process all time slots for the day
+    const timeSlots: TimeSlot[] = ['10AM', '3PM', '8PM'];
+    console.log(`Starting ${isManualTrigger ? 'manual' : 'automated'} update for all time slots...`);
     
-    response.status(status).send(body);
+    const results = await Promise.all(
+      timeSlots.map(async (timeSlot) => {
+        try {
+          console.log(`Processing ${timeSlot} time slot...`);
+          await processTimeSlot(timeSlot);
+          console.log(`Successfully processed ${timeSlot} time slot`);
+          return { 
+            timeSlot, 
+            success: true,
+            message: `Successfully processed ${timeSlot} time slot`
+          };
+        } catch (error) {
+          console.error(`Failed to process ${timeSlot}:`, error);
+          return { 
+            timeSlot, 
+            success: false, 
+            error: error instanceof Error ? error.message : 'Unknown error',
+            stack: error instanceof Error ? error.stack : undefined
+          };
+        }
+      })
+    );
+
+    const allSuccessful = results.every(result => result.success);
+    
+    return new Response(
+      JSON.stringify({ 
+        success: allSuccessful,
+        message: `Completed ${isManualTrigger ? 'manual' : 'automated'} news processing`,
+        results 
+      }),
+      { 
+        status: allSuccessful ? 200 : 500,
+        headers: { 'Content-Type': 'application/json' }
+      }
+    );
   } catch (error) {
-    console.error('Error in cron handler:', error);
-    response.status(500).json({ 
-      error: 'Internal server error',
-      details: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined
-    });
+    console.error('Update failed:', error);
+    if (error instanceof Error) {
+      console.error('Error stack:', error.stack);
+    }
+    return new Response(
+      JSON.stringify({ 
+        error: 'Failed to process updates',
+        details: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      }),
+      { 
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      }
+    );
   }
-}
-
-async function parseResponse(response: Response) {
-  const body = await response.text();
-  const status = response.status;
-  const headers = Object.fromEntries(response.headers.entries());
-  
-  return { status, headers, body };
 } 
