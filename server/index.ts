@@ -1,23 +1,13 @@
-import express from 'express';
+import { VercelRequest, VercelResponse } from '@vercel/node';
 import cors from 'cors';
 import OpenAI from 'openai';
-import dotenv from 'dotenv';
-
-dotenv.config();
-
-const app = express();
-const initialPort = Number(process.env.PORT) || 3001;
-
-app.use(cors());
-app.use(express.json());
 
 const NEWS_API_KEY = process.env.NEWS_API_KEY;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 console.log('Server environment check:', {
   hasNewsApiKey: !!NEWS_API_KEY,
-  hasOpenAiKey: !!OPENAI_API_KEY,
-  port: initialPort
+  hasOpenAiKey: !!OPENAI_API_KEY
 });
 
 const openai = new OpenAI({
@@ -25,11 +15,6 @@ const openai = new OpenAI({
 });
 
 const CATEGORIES = ['tech', 'finance', 'science', 'health'] as const;
-
-// Health check endpoint
-app.get('/api/health', (_, res) => {
-  res.json({ status: 'ok' });
-});
 
 async function fetchNewsForCategory(category: string) {
   console.log(`Fetching news for category: ${category}`);
@@ -63,7 +48,23 @@ async function expandArticleWithGPT(article: any): Promise<string> {
   return completion.choices[0]?.message?.content || article.description;
 }
 
-app.get('/api/news', async (req, res) => {
+// Export the API handler for Vercel
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Enable CORS
+  await new Promise((resolve, reject) => {
+    cors()(req, res, (result) => {
+      if (result instanceof Error) {
+        return reject(result);
+      }
+      return resolve(result);
+    });
+  });
+
+  // Only allow GET requests
+  if (req.method !== 'GET') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
   try {
     console.log('Received news request:', req.query);
     const { timeSlot } = req.query;
@@ -117,33 +118,9 @@ app.get('/api/news', async (req, res) => {
     };
 
     console.log('Sending response:', timeBlock);
-    res.json(timeBlock);
+    return res.json(timeBlock);
   } catch (error) {
     console.error('API Error:', error);
-    res.status(500).json({ error: 'Failed to fetch news' });
+    return res.status(500).json({ error: 'Failed to fetch news' });
   }
-});
-
-// Try to start the server on the initial port, if busy try next available port
-function startServer(port: number) {
-  try {
-    const server = app.listen(port, () => {
-      console.log(`Server running at http://localhost:${port}`);
-      // Update the client's API URL
-      process.env.VITE_API_URL = `http://localhost:${port}`;
-    });
-
-    server.on('error', (err: any) => {
-      if (err.code === 'EADDRINUSE') {
-        console.log(`Port ${port} is busy, trying ${port + 1}`);
-        startServer(port + 1);
-      } else {
-        console.error('Server error:', err);
-      }
-    });
-  } catch (error) {
-    console.error('Failed to start server:', error);
-  }
-}
-
-startServer(initialPort); 
+} 

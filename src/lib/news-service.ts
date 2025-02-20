@@ -97,15 +97,18 @@ export async function getNewsForTimeSlot(timeSlot: TimeSlot): Promise<TimeBlock 
   }
 
   try {
-    console.log(`Fetching news from ${API_URL}/api/news?timeSlot=${timeSlot}`);
-    const response = await fetch(`${API_URL}/api/news?timeSlot=${timeSlot}`);
+    const url = `${API_URL}/api/news?timeSlot=${timeSlot}`;
+    console.log(`Fetching news from ${url}`);
+    
+    const response = await fetch(url);
     
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Server response:', {
         status: response.status,
         statusText: response.statusText,
-        body: errorText
+        body: errorText,
+        url
       });
       throw new Error(`Failed to fetch news: ${response.status} ${response.statusText}`);
     }
