@@ -1,12 +1,9 @@
 import { TimeBlock, TimeSlot, NewsItem } from './types';
 import Redis from 'ioredis';
-import { clientEnv } from './client-env';
+import { clientEnv, isBrowser } from './client-env';
 import { serverEnv } from './server-env';
 
 const TTL = 24 * 60 * 60; // 24 hours in seconds
-
-// Helper to determine if we're in a browser environment
-const isBrowser = typeof window !== 'undefined';
 
 // Get the appropriate environment variables
 const env = isBrowser ? clientEnv : serverEnv;
@@ -68,12 +65,8 @@ let redisClient: Redis | null = null;
 function getRedisClient(): Redis | null {
   if (isBrowser) return null;
   
-  if (!redisClient) {
-    if (!env.REDIS_URL) {
-      console.warn('Redis URL not found, falling back to mock data');
-      return null;
-    }
-    redisClient = new Redis(env.REDIS_URL);
+  if (!redisClient && clientEnv.REDIS_URL) {
+    redisClient = new Redis(clientEnv.REDIS_URL);
   }
   return redisClient;
 }
@@ -81,8 +74,16 @@ function getRedisClient(): Redis | null {
 // Storage implementation
 const storage = {
   async set(key: string, value: any, ttl?: number) {
-    const redis = getRedisClient();
+    if (isBrowser) {
+      try {
+        localStorage.setItem(key, JSON.stringify(value));
+      } catch (error) {
+        console.error('Failed to store in localStorage:', error);
+      }
+      return;
+    }
     
+    const redis = getRedisClient();
     if (redis) {
       try {
         if (ttl) {
@@ -90,36 +91,31 @@ const storage = {
         } else {
           await redis.set(key, JSON.stringify(value));
         }
-        console.log(`Successfully stored in Redis: ${key}`);
       } catch (error) {
         console.error('Failed to store in Redis:', error);
-        if (isBrowser) {
-          localStorage.setItem(key, JSON.stringify(value));
-        }
       }
-    } else if (isBrowser) {
-      localStorage.setItem(key, JSON.stringify(value));
     }
   },
 
   async get(key: string): Promise<any> {
-    const redis = getRedisClient();
-    
-    if (redis) {
+    if (isBrowser) {
       try {
-        const data = await redis.get(key);
-        if (data) {
-          return JSON.parse(data);
-        }
+        const data = localStorage.getItem(key);
+        return data ? JSON.parse(data) : null;
       } catch (error) {
-        console.error('Failed to read from Redis:', error);
+        console.error('Failed to read from localStorage:', error);
+        return null;
       }
     }
     
-    if (isBrowser) {
-      const data = localStorage.getItem(key);
-      if (data) {
-        return JSON.parse(data);
+    const redis = getRedisClient();
+    if (redis) {
+      try {
+        const data = await redis.get(key);
+        return data ? JSON.parse(data) : null;
+      } catch (error) {
+        console.error('Failed to read from Redis:', error);
+        return null;
       }
     }
     
@@ -128,15 +124,13 @@ const storage = {
 };
 
 export async function storeTimeBlock(timeSlot: TimeSlot, stories: NewsItem[]): Promise<void> {
-  const date = new Date().toLocaleDateString('en-US', { 
-    day: 'numeric', 
-    month: 'numeric', 
-    year: '2-digit'
-  }).replace(/\//g, ' ');
-
   const timeBlock: TimeBlock = {
     time: timeSlot,
-    date,
+    date: new Date().toLocaleDateString('en-US', { 
+      day: 'numeric', 
+      month: 'numeric', 
+      year: '2-digit'
+    }).replace(/\//g, ' '),
     stories
   };
 
@@ -152,8 +146,8 @@ export async function getTimeBlock(timeSlot: TimeSlot): Promise<TimeBlock | null
     return data;
   }
 
-  if (isBrowser) {
-    // If in browser and no data found, return mock data
+  if (isBrowser && isTimeSlotAvailable(timeSlot)) {
+    // If in browser and time slot is available but no data found, return mock data
     const mockStories = createMockStories(timeSlot);
     const mockTimeBlock: TimeBlock = {
       time: timeSlot,
@@ -166,7 +160,7 @@ export async function getTimeBlock(timeSlot: TimeSlot): Promise<TimeBlock | null
     };
 
     // Store mock data for future use
-    await storeTimeBlock(timeSlot, mockStories);
+    await storage.set(key, mockTimeBlock, TTL);
     return mockTimeBlock;
   }
 
