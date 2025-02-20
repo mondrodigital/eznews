@@ -1,5 +1,5 @@
 import { NewsItem, NewsCategory, CATEGORY_MAPPING } from './types';
-import { serverEnv } from './server-env';
+import { clientEnv } from './client-env';
 
 export interface NewsAPIArticle {
   source: {
@@ -22,12 +22,12 @@ interface NewsAPIResponse {
 }
 
 export async function fetchNewsForCategory(category: NewsCategory): Promise<NewsAPIArticle[]> {
-  if (!serverEnv.NEWS_API_KEY) {
+  if (!clientEnv.NEWS_API_KEY) {
     throw new Error('NEWS_API_KEY is not set');
   }
 
   const apiUrl = new URL('https://newsapi.org/v2/top-headlines');
-  apiUrl.searchParams.append('apiKey', serverEnv.NEWS_API_KEY);
+  apiUrl.searchParams.append('apiKey', clientEnv.NEWS_API_KEY);
   apiUrl.searchParams.append('category', CATEGORY_MAPPING[category]);
   apiUrl.searchParams.append('language', 'en');
   apiUrl.searchParams.append('pageSize', '10');
@@ -44,12 +44,12 @@ export async function fetchNewsForCategory(category: NewsCategory): Promise<News
 
 // This will be used to get a relevant image from Unsplash if the article doesn't have one
 export async function getUnsplashImage(query: string): Promise<string> {
-  if (!serverEnv.UNSPLASH_ACCESS_KEY) {
+  if (!clientEnv.UNSPLASH_ACCESS_KEY) {
     throw new Error('UNSPLASH_ACCESS_KEY is not set');
   }
 
   const apiUrl = new URL('https://api.unsplash.com/search/photos');
-  apiUrl.searchParams.append('client_id', serverEnv.UNSPLASH_ACCESS_KEY);
+  apiUrl.searchParams.append('client_id', clientEnv.UNSPLASH_ACCESS_KEY);
   apiUrl.searchParams.append('query', query);
   apiUrl.searchParams.append('per_page', '1');
 
