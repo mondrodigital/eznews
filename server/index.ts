@@ -18,34 +18,45 @@ const CATEGORIES = ['tech', 'finance', 'science', 'health'] as const;
 
 async function fetchNewsForCategory(category: string) {
   console.log(`Fetching news for category: ${category}`);
-  const response = await fetch(
-    `https://newsapi.org/v2/top-headlines?country=us&category=${category}&pageSize=1&apiKey=${NEWS_API_KEY}`
-  );
-  const data = await response.json();
-  console.log(`Received response for ${category}:`, data);
-  return data.articles || [];
+  try {
+    const response = await fetch(
+      `https://newsapi.org/v2/top-headlines?country=us&category=${category}&pageSize=1&apiKey=${NEWS_API_KEY}`,
+      { signal: AbortSignal.timeout(5000) } // 5-second timeout
+    );
+    const data = await response.json();
+    console.log(`Received response for ${category}:`, data);
+    return data.articles || [];
+  } catch (error) {
+    console.error(`Error fetching ${category}:`, error);
+    return [];
+  }
 }
 
 async function expandArticleWithGPT(article: any): Promise<string> {
-  console.log('Expanding article with GPT:', article.title);
-  const prompt = `
-    Write a short, impactful news article about this topic in 3-4 brief paragraphs (about 150 words total).
-    Focus on the key facts and maintain a clear, direct journalistic style.
-    Keep each paragraph to 2-3 sentences maximum.
+  try {
+    console.log('Expanding article with GPT:', article.title);
+    const prompt = `
+      Write a short, impactful news article about this topic in 3-4 brief paragraphs (about 150 words total).
+      Focus on the key facts and maintain a clear, direct journalistic style.
+      Keep each paragraph to 2-3 sentences maximum.
 
-    Headline: ${article.title}
-    Initial Content: ${article.description} ${article.content || ''}
-  `;
+      Headline: ${article.title}
+      Initial Content: ${article.description || ''} ${article.content || ''}
+    `.trim();
 
-  const completion = await openai.chat.completions.create({
-    messages: [{ role: "user", content: prompt }],
-    model: "gpt-4-turbo-preview",
-    temperature: 0.7,
-    max_tokens: 200,
-  });
+    const completion = await openai.chat.completions.create({
+      messages: [{ role: "user", content: prompt }],
+      model: "gpt-4-turbo-preview",
+      temperature: 0.7,
+      max_tokens: 200
+    });
 
-  console.log('GPT response received');
-  return completion.choices[0]?.message?.content || article.description;
+    console.log('GPT response received');
+    return completion.choices[0]?.message?.content || article.description || '';
+  } catch (error) {
+    console.error('Error expanding with GPT:', error);
+    return article.description || article.content?.split('[+')[0] || '';
+  }
 }
 
 // Export the API handler for Vercel
@@ -73,34 +84,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Time slot is required' });
     }
 
-    const newsItems = [];
-
-    for (const category of CATEGORIES) {
+    // Fetch all categories in parallel
+    const categoryPromises = CATEGORIES.map(async (category) => {
       try {
-        console.log(`Processing category: ${category}`);
         const articles = await fetchNewsForCategory(category);
-        if (articles.length > 0) {
-          const article = articles[0];
-          const expandedContent = await expandArticleWithGPT(article);
-          
-          newsItems.push({
-            id: article.url,
-            timestamp: new Date(article.publishedAt),
-            category,
-            headline: article.title,
-            content: expandedContent,
-            source: article.source.name,
-            image: article.urlToImage || `https://placehold.co/400x267?text=${category}+News`,
-            originalUrl: article.url
-          });
-          console.log(`Successfully processed ${category} article`);
-        } else {
-          console.log(`No articles found for ${category}`);
-        }
+        if (articles.length === 0) return null;
+
+        const article = articles[0];
+        const expandedContent = await expandArticleWithGPT(article);
+        
+        return {
+          id: article.url,
+          timestamp: new Date(article.publishedAt),
+          category,
+          headline: article.title,
+          content: expandedContent,
+          source: article.source?.name || 'Unknown',
+          image: article.urlToImage || `https://placehold.co/400x267?text=${category}+News`,
+          originalUrl: article.url
+        };
       } catch (error) {
-        console.error(`Failed to process ${category} news:`, error);
+        console.error(`Failed to process ${category}:`, error);
+        return null;
       }
-    }
+    });
+
+    // Wait for all categories with a timeout
+    const results = await Promise.race([
+      Promise.all(categoryPromises),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Operation timed out')), 9000)) // 9-second timeout
+    ]);
+
+    const newsItems = (results as any[]).filter(Boolean);
 
     if (newsItems.length === 0) {
       console.log('No news items found for any category');
@@ -121,6 +136,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.json(timeBlock);
   } catch (error) {
     console.error('API Error:', error);
-    return res.status(500).json({ error: 'Failed to fetch news' });
+    return res.status(500).json({ 
+      error: 'Failed to fetch news',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 } 
