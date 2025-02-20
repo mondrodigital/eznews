@@ -21,21 +21,10 @@ function getEnvVar(key: string): string | undefined {
 
 function getRedisClient() {
   if (!redisClient) {
-    let redisUrl: string | undefined;
-    
-    // In Node.js (server-side)
-    if (typeof process !== 'undefined' && process.env) {
-      redisUrl = process.env.REDIS_URL;
-    }
-    // In browser (client-side)
-    else if (typeof import.meta !== 'undefined' && import.meta.env) {
-      redisUrl = import.meta.env.VITE_REDIS_URL;
-    }
-
+    const redisUrl = getEnvVar('REDIS_URL');
     if (!redisUrl) {
       throw new Error('Redis URL not found in environment variables');
     }
-
     redisClient = new Redis(redisUrl);
   }
   return redisClient;

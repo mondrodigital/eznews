@@ -3,9 +3,11 @@ import { TimeSlot } from '../lib/types';
 
 // Helper to get environment variables in both Node.js and browser
 function getEnvVar(key: string): string | undefined {
+  // In Node.js (server-side)
   if (typeof process !== 'undefined' && process.env) {
     return process.env[key];
   }
+  // In browser (client-side)
   if (typeof import.meta !== 'undefined' && import.meta.env) {
     return import.meta.env[`VITE_${key}`];
   }
@@ -17,7 +19,7 @@ export async function handleCronUpdate(req: Request) {
     // Verify the request is authorized
     const authHeader = req.headers.get('authorization');
     const isManualTrigger = req.method === 'POST';
-    const cronSecret = process.env.CRON_SECRET;
+    const cronSecret = getEnvVar('CRON_SECRET'); // Use getEnvVar instead of process.env
     
     // For manual triggers, check the secret in the body
     if (isManualTrigger) {
