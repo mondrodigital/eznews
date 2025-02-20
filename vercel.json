@@ -15,7 +15,7 @@
   ],
   "routes": [
     {
-      "src": "/api/cron/update",
+      "src": "/api/cron",
       "dest": "/api/cron.ts"
     },
     {
@@ -29,15 +29,15 @@
   ],
   "crons": [
     {
-      "path": "/api/cron/update",
+      "path": "/api/cron",
       "schedule": "55 9 * * *"
     },
     {
-      "path": "/api/cron/update",
+      "path": "/api/cron",
       "schedule": "55 14 * * *"
     },
     {
-      "path": "/api/cron/update",
+      "path": "/api/cron",
       "schedule": "55 19 * * *"
     }
   ]
