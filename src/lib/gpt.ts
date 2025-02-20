@@ -7,13 +7,16 @@ let openai: OpenAI;
 
 // Helper to get environment variables in both Node.js and browser
 function getEnvVar(key: string): string | undefined {
-  if (typeof process !== 'undefined' && process.env) {
-    return process.env[key];
+  try {
+    // In browser (client-side)
+    if (typeof window !== 'undefined') {
+      return (import.meta.env as any)[`VITE_${key}`];
+    }
+    // In Node.js (server-side)
+    return process?.env?.[key];
+  } catch {
+    return undefined;
   }
-  if (typeof import.meta !== 'undefined' && import.meta.env) {
-    return import.meta.env[`VITE_${key}`];
-  }
-  return undefined;
 }
 
 function getOpenAIClient() {
