@@ -2,11 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { ChevronDown, Menu, Loader2 } from 'lucide-react';
 import { useNews } from './lib/hooks/useNews';
 import { TimeSlot } from './lib/types';
-import { initializeMockData } from './lib/mock-data';
 
-// Initialize mock data
-console.log('Initializing mock data...');
-initializeMockData();
+// Remove mock data initialization
+console.log('App initializing...');
 
 const categories = [
   { id: 'all', name: 'All', emoji: '🗞️' },
