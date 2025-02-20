@@ -29,91 +29,68 @@ async function fetchAndProcessNews(category: string, timeSlot: string) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  try {
-    const response = await fetch(
-      `https://newsapi.org/v2/top-headlines?` +
-      `category=${category}&` +
-      `language=en&` +
-      `pageSize=10&` + // Request more to account for filtering
-      `from=${today.toISOString()}&` +
-      `apiKey=${NEWS_API_KEY}`
-    );
+  const response = await fetch(
+    `https://newsapi.org/v2/top-headlines?` +
+    `category=${category}&` +
+    `language=en&` +
+    `pageSize=10&` + // Request more to account for filtering
+    `from=${today.toISOString()}&` +
+    `apiKey=${NEWS_API_KEY}`,
+    { signal: AbortSignal.timeout(9000) }
+  );
 
-    if (!response.ok) {
-      throw new Error(`News API error: ${response.statusText}`);
-    }
+  if (!response.ok) {
+    throw new Error(`News API error: ${response.statusText}`);
+  }
 
-    const data = await response.json();
-    
-    if (!data.articles?.length) {
-      console.log(`No articles found for category: ${category} in time slot: ${timeSlot}`);
-      return [];
-    }
-
-    // Take the first 3 articles
-    const selectedArticles = data.articles.slice(0, 3);
-
-    // Process each article with OpenAI
-    const processedArticles = await Promise.all(
-      selectedArticles.map(async (article: any) => {
-        try {
-          const completion = await openai.chat.completions.create({
-            model: "gpt-3.5-turbo",
-            messages: [
-              {
-                role: "system",
-                content: "You are a helpful assistant that processes news articles. Take the article and rewrite it in a clear, engaging style while preserving all key information. Format with paragraphs separated by newlines."
-              },
-              {
-                role: "user",
-                content: article.content || article.description || ""
-              }
-            ],
-            max_tokens: 250,
-            temperature: 0.7,
-          });
-
-          // Remove source name from headline if it exists
-          let headline = article.title;
-          if (article.source?.name) {
-            const sourcePattern = new RegExp(` - ${article.source.name}$`);
-            headline = headline.replace(sourcePattern, '');
-            // Also remove any trailing dash with whitespace
-            headline = headline.replace(/\s*-\s*$/, '');
-          }
-
-          return {
-            id: Math.random().toString(36).substring(7),
-            timestamp: new Date(article.publishedAt),
-            category,
-            headline,
-            content: completion.choices[0]?.message?.content || article.content || article.description,
-            source: article.source?.name || 'Unknown',
-            image: article.urlToImage || `https://placehold.co/600x400/2563eb/ffffff?text=${category}+News`,
-            originalUrl: article.url
-          };
-        } catch (error) {
-          console.error('Error processing article with OpenAI:', error);
-          // Return a simpler version without OpenAI processing if it fails
-          return {
-            id: Math.random().toString(36).substring(7),
-            timestamp: new Date(article.publishedAt),
-            category,
-            headline: article.title,
-            content: article.description || article.content || '',
-            source: article.source?.name || 'Unknown',
-            image: article.urlToImage || `https://placehold.co/600x400/2563eb/ffffff?text=${category}+News`,
-            originalUrl: article.url
-          };
-        }
-      })
-    );
-
-    return processedArticles;
-  } catch (error) {
-    console.error(`Error fetching news for category ${category}:`, error);
+  const data = await response.json();
+  
+  if (!data.articles?.length) {
+    console.log(`No articles found for category: ${category} in time slot: ${timeSlot}`);
     return [];
   }
+
+  // Take the first 3 articles
+  const selectedArticles = data.articles.slice(0, 3);
+
+  // Process each article with OpenAI
+  const processedArticles = await Promise.all(
+    selectedArticles.map(async (article: any) => {
+      try {
+        const completion = await openai.chat.completions.create({
+          model: "gpt-3.5-turbo",
+          messages: [
+            {
+              role: "system",
+              content: "You are a helpful assistant that processes news articles. Take the article and rewrite it in a clear, engaging style while preserving all key information. Format with paragraphs separated by newlines."
+            },
+            {
+              role: "user",
+              content: article.content || article.description || ""
+            }
+          ],
+          max_tokens: 250,
+          temperature: 0.7,
+        });
+
+        return {
+          id: Math.random().toString(36).substring(7),
+          timestamp: new Date(article.publishedAt),
+          category,
+          headline: article.title,
+          content: completion.choices[0]?.message?.content || article.content || article.description,
+          source: article.source.name,
+          image: article.urlToImage || `https://placehold.co/600x400/2563eb/ffffff?text=${category}+News`,
+          originalUrl: article.url
+        };
+      } catch (error) {
+        console.error('Error processing article with OpenAI:', error);
+        return null;
+      }
+    })
+  );
+
+  return processedArticles.filter(article => article !== null);
 }
 
 function getCacheKey(timeSlot: string): string {

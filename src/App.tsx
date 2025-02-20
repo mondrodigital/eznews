@@ -180,7 +180,7 @@ function App() {
                       >
                         <div className="flex items-start justify-between pr-2">
                           <h2 className="text-base font-medium pr-12 group-hover:text-gray-600 transition-colors duration-200">
-                            {story.headline}
+                            {story.headline.replace(` - ${story.source}`, '').replace(/\s*-\s*$/, '')}
                           </h2>
                           <ChevronDown 
                             size={14} 
