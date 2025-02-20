@@ -1,6 +1,7 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import cors from 'cors';
 import OpenAI from 'openai';
+import { getCachedData, setCachedData, shouldRefreshCache, getCacheKey } from './storage';
 
 const NEWS_API_KEY = process.env.NEWS_API_KEY;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
@@ -21,7 +22,7 @@ async function fetchNewsForCategory(category: string) {
   try {
     const response = await fetch(
       `https://newsapi.org/v2/top-headlines?country=us&category=${category}&pageSize=1&apiKey=${NEWS_API_KEY}`,
-      { signal: AbortSignal.timeout(5000) } // 5-second timeout
+      { signal: AbortSignal.timeout(5000) }
     );
     const data = await response.json();
     console.log(`Received response for ${category}:`, data);
@@ -59,6 +60,61 @@ async function expandArticleWithGPT(article: any): Promise<string> {
   }
 }
 
+async function fetchAndProcessNews(timeSlot: string) {
+  // Fetch all categories in parallel
+  const categoryPromises = CATEGORIES.map(async (category) => {
+    try {
+      const articles = await fetchNewsForCategory(category);
+      if (articles.length === 0) return null;
+
+      const article = articles[0];
+      const expandedContent = await expandArticleWithGPT(article);
+      
+      return {
+        id: article.url,
+        timestamp: new Date(article.publishedAt),
+        category,
+        headline: article.title,
+        content: expandedContent,
+        source: article.source?.name || 'Unknown',
+        image: article.urlToImage || `https://placehold.co/400x267?text=${category}+News`,
+        originalUrl: article.url
+      };
+    } catch (error) {
+      console.error(`Failed to process ${category}:`, error);
+      return null;
+    }
+  });
+
+  // Wait for all categories with a timeout
+  const results = await Promise.race([
+    Promise.all(categoryPromises),
+    new Promise((_, reject) => setTimeout(() => reject(new Error('Operation timed out')), 9000))
+  ]);
+
+  const newsItems = (results as any[]).filter(Boolean);
+
+  if (newsItems.length === 0) {
+    throw new Error('No news items found');
+  }
+
+  const timeBlock = {
+    time: timeSlot,
+    date: new Date().toLocaleDateString('en-US', { 
+      day: 'numeric', 
+      month: 'numeric', 
+      year: '2-digit'
+    }).replace(/\//g, ' '),
+    stories: newsItems
+  };
+
+  // Cache the results
+  const cacheKey = getCacheKey(timeSlot);
+  setCachedData(cacheKey, timeBlock);
+
+  return timeBlock;
+}
+
 // Export the API handler for Vercel
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Enable CORS
@@ -84,55 +140,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Time slot is required' });
     }
 
-    // Fetch all categories in parallel
-    const categoryPromises = CATEGORIES.map(async (category) => {
-      try {
-        const articles = await fetchNewsForCategory(category);
-        if (articles.length === 0) return null;
+    // Try to get cached data
+    const cacheKey = getCacheKey(timeSlot as string);
+    let timeBlock = getCachedData(cacheKey);
 
-        const article = articles[0];
-        const expandedContent = await expandArticleWithGPT(article);
-        
-        return {
-          id: article.url,
-          timestamp: new Date(article.publishedAt),
-          category,
-          headline: article.title,
-          content: expandedContent,
-          source: article.source?.name || 'Unknown',
-          image: article.urlToImage || `https://placehold.co/400x267?text=${category}+News`,
-          originalUrl: article.url
-        };
-      } catch (error) {
-        console.error(`Failed to process ${category}:`, error);
-        return null;
-      }
-    });
-
-    // Wait for all categories with a timeout
-    const results = await Promise.race([
-      Promise.all(categoryPromises),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Operation timed out')), 9000)) // 9-second timeout
-    ]);
-
-    const newsItems = (results as any[]).filter(Boolean);
-
-    if (newsItems.length === 0) {
-      console.log('No news items found for any category');
-      return res.status(404).json({ error: 'No news items found' });
+    // If no cached data or it's time to refresh, fetch new data
+    if (!timeBlock || shouldRefreshCache(timeSlot as string)) {
+      console.log('Cache miss or refresh needed, fetching new data');
+      timeBlock = await fetchAndProcessNews(timeSlot as string);
+    } else {
+      console.log('Returning cached data');
     }
 
-    const timeBlock = {
-      time: timeSlot,
-      date: new Date().toLocaleDateString('en-US', { 
-        day: 'numeric', 
-        month: 'numeric', 
-        year: '2-digit'
-      }).replace(/\//g, ' '),
-      stories: newsItems
-    };
-
-    console.log('Sending response:', timeBlock);
     return res.json(timeBlock);
   } catch (error) {
     console.error('API Error:', error);
