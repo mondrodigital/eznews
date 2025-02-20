@@ -11,7 +11,9 @@ const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 
 console.log('Server environment check:', {
   hasNewsApiKey: !!NEWS_API_KEY,
-  hasOpenAiKey: !!OPENAI_API_KEY
+  hasOpenAiKey: !!OPENAI_API_KEY,
+  newsApiKeyLength: NEWS_API_KEY?.length,
+  openaiKeyLength: OPENAI_API_KEY?.length
 });
 
 const openai = new OpenAI({
@@ -68,12 +70,32 @@ function setCachedData(key: string, data: any) {
 async function fetchNewsForCategory(category: string) {
   console.log(`Fetching news for category: ${category}`);
   try {
-    const response = await fetch(
-      `https://newsapi.org/v2/top-headlines?country=us&category=${category}&pageSize=1&apiKey=${NEWS_API_KEY}`,
-      { signal: AbortSignal.timeout(5000) }
-    );
+    const url = `https://newsapi.org/v2/top-headlines?country=us&category=${category}&pageSize=1&apiKey=${NEWS_API_KEY}`;
+    console.log('Fetching from URL:', url);
+    const response = await fetch(url, { 
+      signal: AbortSignal.timeout(5000),
+      headers: {
+        'User-Agent': 'Mews/1.0'
+      }
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`NewsAPI error for ${category}:`, {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorText
+      });
+      throw new Error(`NewsAPI error: ${response.status} ${response.statusText}`);
+    }
+    
     const data = await response.json();
     console.log(`Received response for ${category}:`, data);
+    
+    if (data.status === 'error') {
+      throw new Error(`NewsAPI error: ${data.message}`);
+    }
+    
     return data.articles || [];
   } catch (error) {
     console.error(`Error fetching ${category}:`, error);
@@ -165,6 +187,12 @@ async function fetchAndProcessNews(timeSlot: string) {
 
 // Export the API handler for Vercel
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  console.log('API handler started', {
+    method: req.method,
+    query: req.query,
+    headers: req.headers
+  });
+
   // Enable CORS
   await new Promise((resolve, reject) => {
     cors()(req, res, (result) => {
@@ -195,9 +223,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // If no cached data or it's time to refresh, fetch new data
     if (!timeBlock || shouldRefreshCache(timeSlot as string)) {
       console.log('Cache miss or refresh needed, fetching new data');
-      timeBlock = await fetchAndProcessNews(timeSlot as string);
+      try {
+        timeBlock = await fetchAndProcessNews(timeSlot as string);
+      } catch (fetchError) {
+        console.error('Error in fetchAndProcessNews:', fetchError);
+        return res.status(500).json({ 
+          error: 'Failed to fetch news',
+          details: fetchError instanceof Error ? fetchError.message : 'Unknown error in fetchAndProcessNews'
+        });
+      }
     } else {
       console.log('Returning cached data');
+    }
+
+    if (!timeBlock) {
+      return res.status(404).json({ error: 'No news available for this time slot' });
     }
 
     return res.json(timeBlock);
