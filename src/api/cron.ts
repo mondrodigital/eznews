@@ -4,13 +4,33 @@ import { env } from '../lib/env';
 
 export async function handleCronUpdate(req: Request) {
   try {
+    // Debug environment variables
+    console.log('Environment check:', {
+      REDIS_URL: env.REDIS_URL ? 'Set' : 'Not set',
+      NEWS_API_KEY: env.NEWS_API_KEY ? 'Set' : 'Not set',
+      OPENAI_API_KEY: env.OPENAI_API_KEY ? 'Set' : 'Not set',
+      UNSPLASH_ACCESS_KEY: env.UNSPLASH_ACCESS_KEY ? 'Set' : 'Not set',
+      CRON_SECRET: env.CRON_SECRET ? 'Set' : 'Not set'
+    });
+
+    // Validate required environment variables
+    const requiredVars = [
+      'REDIS_URL',
+      'NEWS_API_KEY',
+      'OPENAI_API_KEY',
+      'UNSPLASH_ACCESS_KEY',
+      'CRON_SECRET'
+    ];
+
+    const missingVars = requiredVars.filter(varName => !env[varName as keyof typeof env]);
+    
+    if (missingVars.length > 0) {
+      throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
+    }
+
     // Verify the request is authorized
     const authHeader = req.headers.get('authorization');
     const isManualTrigger = req.method === 'POST';
-    
-    if (!env.CRON_SECRET) {
-      throw new Error('CRON_SECRET not found in environment variables');
-    }
     
     // For manual triggers, check the secret in the body
     if (isManualTrigger) {
