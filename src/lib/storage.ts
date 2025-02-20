@@ -1,85 +1,55 @@
 import { TimeBlock, TimeSlot, NewsItem } from './types';
-import Redis from 'ioredis';
-import { env } from './env';
 
-const TTL = 24 * 60 * 60; // 24 hours in seconds
-
-// Helper to determine if we're in a browser environment
-const isBrowser = typeof window !== 'undefined';
+// Mock data generator
+function createMockStories(timeSlot: TimeSlot): NewsItem[] {
+  return [
+    {
+      id: '1',
+      timestamp: new Date(),
+      category: 'tech',
+      headline: 'AI Breakthrough in Natural Language Processing',
+      content: 'Scientists have developed a new AI model that demonstrates unprecedented language understanding capabilities.\n\nThe model shows remarkable ability to process and generate human-like text while requiring significantly less computational power.\n\nEarly tests indicate potential applications in education, healthcare, and scientific research.\n\nResearchers emphasize the importance of ethical considerations in deployment.',
+      source: 'Tech Daily',
+      image: 'https://images.unsplash.com/photo-1677442136019-21780ecad995',
+      originalUrl: 'https://example.com/tech-news'
+    },
+    {
+      id: '2',
+      timestamp: new Date(),
+      category: 'finance',
+      headline: 'Global Markets Show Strong Recovery',
+      content: 'Stock markets worldwide have shown remarkable resilience with a strong recovery in major indices.\n\nInvestors are showing renewed confidence in technology and renewable energy sectors.\n\nAnalysts point to improving economic indicators and positive corporate earnings.\n\nExperts suggest maintaining a diversified portfolio approach.',
+      source: 'Financial Times',
+      image: 'https://images.unsplash.com/photo-1642543492481-44e81e3ab2f4',
+      originalUrl: 'https://example.com/finance-news'
+    },
+    {
+      id: '3',
+      timestamp: new Date(),
+      category: 'science',
+      headline: 'Breakthrough in Quantum Computing Research',
+      content: 'Scientists achieve major milestone in quantum computing stability.\n\nNew technique allows qubits to maintain coherence for unprecedented durations.\n\nThis development could accelerate practical quantum computer development.\n\nResearchers predict significant implications for cryptography and drug discovery.',
+      source: 'Science Today',
+      image: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb',
+      originalUrl: 'https://example.com/science-news'
+    },
+    {
+      id: '4',
+      timestamp: new Date(),
+      category: 'health',
+      headline: 'New Research in Preventive Medicine',
+      content: 'Medical researchers identify promising preventive treatment approach.\n\nStudy shows significant reduction in common chronic condition risk factors.\n\nClinical trials demonstrate positive results with minimal side effects.\n\nExperts suggest potential for widespread public health impact.',
+      source: 'Health Weekly',
+      image: 'https://images.unsplash.com/photo-1579165466741-7f35e4755182',
+      originalUrl: 'https://example.com/health-news'
+    }
+  ];
+}
 
 // Storage key helper
 function getStorageKey(timeSlot: TimeSlot): string {
-  return `news:${timeSlot}`;
+  return `news_${timeSlot}`;
 }
-
-// Browser storage implementation
-const browserStorage = {
-  async set(key: string, value: any, ttl?: number) {
-    try {
-      localStorage.setItem(key, JSON.stringify(value));
-    } catch (error) {
-      console.error('Failed to store in localStorage:', error);
-      throw error;
-    }
-  },
-
-  async get(key: string) {
-    try {
-      const value = localStorage.getItem(key);
-      return value ? JSON.parse(value) : null;
-    } catch (error) {
-      console.error('Failed to read from localStorage:', error);
-      return null;
-    }
-  }
-};
-
-// Redis storage implementation
-let redisClient: Redis | null = null;
-
-function getRedisClient() {
-  if (!redisClient && !isBrowser) {
-    if (!env.REDIS_URL) {
-      throw new Error('Redis URL not found in environment variables');
-    }
-    redisClient = new Redis(env.REDIS_URL);
-  }
-  return redisClient;
-}
-
-const redisStorage = {
-  async set(key: string, value: any, ttl?: number) {
-    const redis = getRedisClient();
-    if (!redis) return browserStorage.set(key, value);
-    
-    try {
-      if (ttl) {
-        await redis.set(key, JSON.stringify(value), 'EX', ttl);
-      } else {
-        await redis.set(key, JSON.stringify(value));
-      }
-    } catch (error) {
-      console.error('Failed to store in Redis:', error);
-      throw error;
-    }
-  },
-
-  async get(key: string) {
-    const redis = getRedisClient();
-    if (!redis) return browserStorage.get(key);
-    
-    try {
-      const data = await redis.get(key);
-      return data ? JSON.parse(data) : null;
-    } catch (error) {
-      console.error('Failed to read from Redis:', error);
-      return null;
-    }
-  }
-};
-
-// Use browser storage in browser environment, Redis storage on server
-const storage = isBrowser ? browserStorage : redisStorage;
 
 export async function storeTimeBlock(timeSlot: TimeSlot, stories: NewsItem[]): Promise<void> {
   const date = new Date().toLocaleDateString('en-US', { 
@@ -94,21 +64,41 @@ export async function storeTimeBlock(timeSlot: TimeSlot, stories: NewsItem[]): P
     stories
   };
 
-  const key = getStorageKey(timeSlot);
-  await storage.set(key, timeBlock, TTL);
-  console.log(`Successfully stored data for ${timeSlot}`);
+  try {
+    localStorage.setItem(getStorageKey(timeSlot), JSON.stringify(timeBlock));
+    console.log(`Successfully stored data for ${timeSlot}`);
+  } catch (error) {
+    console.error('Failed to store data:', error);
+  }
 }
 
 export async function getTimeBlock(timeSlot: TimeSlot): Promise<TimeBlock | null> {
-  const key = getStorageKey(timeSlot);
-  const data = await storage.get(key);
-  
-  if (!data) {
-    console.log(`No data found for ${timeSlot}`);
+  try {
+    // First try to get from localStorage
+    const stored = localStorage.getItem(getStorageKey(timeSlot));
+    if (stored) {
+      return JSON.parse(stored);
+    }
+
+    // If not found, return mock data
+    const mockStories = createMockStories(timeSlot);
+    const mockTimeBlock: TimeBlock = {
+      time: timeSlot,
+      date: new Date().toLocaleDateString('en-US', { 
+        day: 'numeric', 
+        month: 'numeric', 
+        year: '2-digit'
+      }).replace(/\//g, ' '),
+      stories: mockStories
+    };
+
+    // Store mock data for future use
+    await storeTimeBlock(timeSlot, mockStories);
+    return mockTimeBlock;
+  } catch (error) {
+    console.error('Failed to get time block:', error);
     return null;
   }
-
-  return data;
 }
 
 export async function getAllAvailableTimeBlocks(): Promise<TimeBlock[]> {

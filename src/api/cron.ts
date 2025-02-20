@@ -1,92 +1,20 @@
-import { processTimeSlot } from '../lib/process';
 import { TimeSlot } from '../lib/types';
-
-// Helper to get environment variables in both Node.js and browser
-function getEnvVar(key: string): string | undefined {
-  try {
-    // In browser (client-side)
-    if (typeof window !== 'undefined') {
-      return (import.meta.env as any)[`VITE_${key}`];
-    }
-    // In Node.js (server-side)
-    return process?.env?.[key];
-  } catch {
-    return undefined;
-  }
-}
 
 export async function handleCronUpdate(req: Request) {
   try {
-    // Verify the request is authorized
-    const authHeader = req.headers.get('authorization');
-    const isManualTrigger = req.method === 'POST';
-    const cronSecret = getEnvVar('CRON_SECRET');
-    
-    if (!cronSecret) {
-      throw new Error('CRON_SECRET not found in environment variables');
-    }
-    
-    // For manual triggers, check the secret in the body
-    if (isManualTrigger) {
-      const body = await req.json();
-      if (body.secret !== cronSecret) {
-        return new Response(
-          JSON.stringify({ error: 'Unauthorized - Invalid secret' }),
-          { 
-            status: 401,
-            headers: { 'Content-Type': 'application/json' }
-          }
-        );
-      }
-    } else {
-      // For automated cron, check the bearer token
-      if (authHeader !== `Bearer ${cronSecret}`) {
-        return new Response(
-          JSON.stringify({ error: 'Unauthorized - Invalid token' }),
-          { 
-            status: 401,
-            headers: { 'Content-Type': 'application/json' }
-          }
-        );
-      }
-    }
-
-    // Process all time slots for the day
-    const timeSlots: TimeSlot[] = ['10AM', '3PM', '8PM'];
-    console.log(`Starting ${isManualTrigger ? 'manual' : 'automated'} update for all time slots...`);
-    
-    const results = await Promise.all(
-      timeSlots.map(async (timeSlot) => {
-        try {
-          console.log(`Processing ${timeSlot} time slot...`);
-          await processTimeSlot(timeSlot);
-          console.log(`Successfully processed ${timeSlot} time slot`);
-          return { 
-            timeSlot, 
-            success: true,
-            message: `Successfully processed ${timeSlot} time slot`
-          };
-        } catch (error) {
-          console.error(`Failed to process ${timeSlot}:`, error);
-          return { 
-            timeSlot, 
-            success: false, 
-            error: error instanceof Error ? error.message : 'Unknown error' 
-          };
-        }
-      })
-    );
-
-    const allSuccessful = results.every(result => result.success);
-    
+    // For now, just return a success response
     return new Response(
       JSON.stringify({ 
-        success: allSuccessful,
-        message: `Completed ${isManualTrigger ? 'manual' : 'automated'} news processing`,
-        results 
+        success: true,
+        message: 'Mock data is being used, cron updates not needed',
+        results: ['10AM', '3PM', '8PM'].map(timeSlot => ({
+          timeSlot,
+          success: true,
+          message: `Mock data available for ${timeSlot}`
+        }))
       }),
       { 
-        status: allSuccessful ? 200 : 500,
+        status: 200,
         headers: { 'Content-Type': 'application/json' }
       }
     );
