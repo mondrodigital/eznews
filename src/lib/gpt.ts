@@ -1,32 +1,18 @@
 import OpenAI from 'openai';
 import { NewsAPIArticle } from './news';
 import { NewsItem, NewsCategory } from './types';
+import { env } from './env';
 
 // Initialize OpenAI client lazily
 let openai: OpenAI;
 
-// Helper to get environment variables in both Node.js and browser
-function getEnvVar(key: string): string | undefined {
-  try {
-    // In browser (client-side)
-    if (typeof window !== 'undefined') {
-      return (import.meta.env as any)[`VITE_${key}`];
-    }
-    // In Node.js (server-side)
-    return process?.env?.[key];
-  } catch {
-    return undefined;
-  }
-}
-
 function getOpenAIClient() {
   if (!openai) {
-    const apiKey = getEnvVar('OPENAI_API_KEY');
-    if (!apiKey) {
+    if (!env.OPENAI_API_KEY) {
       throw new Error('OPENAI_API_KEY environment variable is not set');
     }
     openai = new OpenAI({
-      apiKey
+      apiKey: env.OPENAI_API_KEY
     });
   }
   return openai;

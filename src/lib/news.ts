@@ -1,4 +1,5 @@
 import { NewsItem, NewsCategory, CATEGORY_MAPPING } from './types';
+import { env } from './env';
 
 export interface NewsAPIArticle {
   source: {
@@ -20,31 +21,16 @@ interface NewsAPIResponse {
   articles: NewsAPIArticle[];
 }
 
-// Helper to get environment variables in both Node.js and browser
-function getEnvVar(key: string): string | undefined {
-  try {
-    // In browser (client-side)
-    if (typeof window !== 'undefined') {
-      return (import.meta.env as any)[`VITE_${key}`];
-    }
-    // In Node.js (server-side)
-    return process?.env?.[key];
-  } catch {
-    return undefined;
-  }
-}
-
 export async function fetchNewsForCategory(category: NewsCategory): Promise<NewsAPIArticle[]> {
-  const apiKey = getEnvVar('NEWS_API_KEY');
-  if (!apiKey) {
+  if (!env.NEWS_API_KEY) {
     throw new Error('NEWS_API_KEY is not set');
   }
 
   const apiUrl = new URL('https://newsapi.org/v2/top-headlines');
-  apiUrl.searchParams.append('apiKey', apiKey);
+  apiUrl.searchParams.append('apiKey', env.NEWS_API_KEY);
   apiUrl.searchParams.append('category', CATEGORY_MAPPING[category]);
   apiUrl.searchParams.append('language', 'en');
-  apiUrl.searchParams.append('pageSize', '10'); // Fetch 10 articles to give GPT-4 more options to choose from
+  apiUrl.searchParams.append('pageSize', '10');
 
   const response = await fetch(apiUrl.toString());
   const data: NewsAPIResponse = await response.json();
@@ -58,13 +44,12 @@ export async function fetchNewsForCategory(category: NewsCategory): Promise<News
 
 // This will be used to get a relevant image from Unsplash if the article doesn't have one
 export async function getUnsplashImage(query: string): Promise<string> {
-  const apiKey = getEnvVar('UNSPLASH_ACCESS_KEY');
-  if (!apiKey) {
+  if (!env.UNSPLASH_ACCESS_KEY) {
     throw new Error('UNSPLASH_ACCESS_KEY is not set');
   }
 
   const apiUrl = new URL('https://api.unsplash.com/search/photos');
-  apiUrl.searchParams.append('client_id', apiKey);
+  apiUrl.searchParams.append('client_id', env.UNSPLASH_ACCESS_KEY);
   apiUrl.searchParams.append('query', query);
   apiUrl.searchParams.append('per_page', '1');
 

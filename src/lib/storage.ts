@@ -1,32 +1,18 @@
 import { TimeBlock, TimeSlot, NewsItem } from './types';
 import Redis from 'ioredis';
+import { env } from './env';
 
 const TTL = 24 * 60 * 60; // 24 hours in seconds
 
 // Initialize Redis client
 let redisClient: Redis | null = null;
 
-// Helper to get environment variables in both Node.js and browser
-function getEnvVar(key: string): string | undefined {
-  try {
-    // In browser (client-side)
-    if (typeof window !== 'undefined') {
-      return (import.meta.env as any)[`VITE_${key}`];
-    }
-    // In Node.js (server-side)
-    return process?.env?.[key];
-  } catch {
-    return undefined;
-  }
-}
-
 function getRedisClient() {
   if (!redisClient) {
-    const redisUrl = getEnvVar('REDIS_URL');
-    if (!redisUrl) {
+    if (!env.REDIS_URL) {
       throw new Error('Redis URL not found in environment variables');
     }
-    redisClient = new Redis(redisUrl);
+    redisClient = new Redis(env.REDIS_URL);
   }
   return redisClient;
 }

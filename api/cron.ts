@@ -31,8 +31,7 @@ export default async function handler(
 
     // For GET requests (automated cron), add authorization header
     const headers = new Headers();
-    const cronSecret = process.env.CRON_SECRET; // This is fine because this file only runs on the server
-    headers.set('authorization', `Bearer ${cronSecret}`);
+    headers.set('authorization', `Bearer ${process.env.CRON_SECRET}`);
     
     const result = await handleCronUpdate(new Request(request.url || '', {
       method: 'GET',
