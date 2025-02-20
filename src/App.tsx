@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { ChevronDown, Menu, Loader2 } from 'lucide-react';
 import { useNews } from './lib/hooks/useNews';
 import { TimeSlot } from './lib/types';
+import { isTimeSlotAvailable } from './lib/storage';
 
 console.log('App initializing...');
 
@@ -12,22 +13,6 @@ const categories = [
   { id: 'science', name: 'Science', emoji: '🔭' },
   { id: 'health', name: 'Health', emoji: '⚕️' }
 ];
-
-function isTimeSlotAvailable(timeSlot: TimeSlot): boolean {
-  const now = new Date();
-  const hour = now.getHours();
-  
-  switch (timeSlot) {
-    case '10AM':
-      return hour >= 10;
-    case '3PM':
-      return hour >= 15;
-    case '8PM':
-      return hour >= 20;
-    default:
-      return false;
-  }
-}
 
 function getDefaultTimeSlot(): TimeSlot {
   const hour = new Date().getHours();
@@ -44,7 +29,6 @@ function App() {
   const [expandedStory, setExpandedStory] = useState<string | null>(null);
   const [scrollProgress, setScrollProgress] = useState(0);
   const [activeCategory, setActiveCategory] = useState('all');
-  const [isNavOpen, setIsNavOpen] = useState(false);
   
   const { timeBlock, loading, error } = useNews(activeTime);
   
@@ -80,7 +64,6 @@ function App() {
     }
     console.log('Time selected:', time);
     setActiveTime(time);
-    setIsNavOpen(false);
   };
 
   if (loading) {
@@ -92,30 +75,43 @@ function App() {
   }
 
   return (
-    <div className="bg-white font-[system-ui] custom-scrollbar">
+    <div className="bg-white font-[system-ui] custom-scrollbar min-h-screen">
       {/* Progress bar */}
       <div 
         className="fixed top-0 left-0 h-[1px] bg-black/20 w-full z-50"
         style={{ transform: `scaleX(${scrollProgress / 100})`, transformOrigin: 'left' }}
       />
 
-      {/* Mobile Nav Toggle */}
-      <button 
-        onClick={() => setIsNavOpen(!isNavOpen)}
-        className="fixed top-4 left-4 z-50 p-2 lg:hidden"
-      >
-        <Menu size={20} />
-      </button>
+      {/* Mobile Time Selector */}
+      <div className="lg:hidden sticky top-0 bg-white border-b border-black/5 z-40">
+        <div className="text-sm font-medium px-4 pt-4 pb-2">{timeBlock?.date}</div>
+        <div className="flex space-x-2 px-4 pb-3 overflow-x-auto hide-scrollbar">
+          {(['10AM', '3PM', '8PM'] as TimeSlot[]).map((time) => {
+            const available = isTimeSlotAvailable(time);
+            return (
+              <button
+                key={time}
+                onClick={() => handleTimeSelect(time)}
+                disabled={!available}
+                className={`py-1.5 px-3 rounded-full text-sm whitespace-nowrap transition-all duration-200 ${
+                  activeTime === time 
+                    ? 'bg-black text-white' 
+                    : available
+                      ? 'text-gray-600 hover:bg-gray-100'
+                      : 'text-gray-300 cursor-not-allowed'
+                }`}
+              >
+                {time}
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       <div className="flex">
-        {/* Vertical Navigation - Mobile Slide-out */}
-        <div className={`
-          fixed top-0 left-0 w-64 h-screen bg-white border-r border-black/5 z-30 
-          transform transition-transform duration-300 
-          lg:sticky lg:translate-x-0 lg:top-0 lg:w-28 lg:h-screen
-          ${isNavOpen ? 'translate-x-0' : '-translate-x-full'}
-        `}>
-          <div className="text-sm font-medium mb-8 px-6 pt-16 lg:pt-4">{timeBlock?.date}</div>
+        {/* Desktop Time Selector */}
+        <div className="hidden lg:block sticky top-0 w-28 h-screen border-r border-black/5">
+          <div className="text-sm font-medium mb-8 px-6 pt-4">{timeBlock?.date}</div>
           <div className="flex flex-col space-y-1 px-6">
             {(['10AM', '3PM', '8PM'] as TimeSlot[]).map((time) => {
               const available = isTimeSlotAvailable(time);
@@ -141,15 +137,15 @@ function App() {
           </div>
         </div>
 
-        <div className="flex-1 min-h-screen">
+        <div className="flex-1">
           {/* Categories Bar */}
-          <div className="sticky top-0 w-full bg-white border-b border-black/5 z-40">
-            <div className="flex items-center space-x-1 px-4 lg:px-6 py-3 overflow-x-auto custom-scrollbar">
+          <div className="sticky top-0 lg:top-0 w-full bg-white border-b border-black/5 z-40">
+            <div className="flex items-center space-x-1 px-4 py-3 overflow-x-auto hide-scrollbar">
               {categories.map((category) => (
                 <button
                   key={category.id}
                   onClick={() => setActiveCategory(category.id)}
-                  className={`flex items-center space-x-2 px-3 lg:px-4 py-2 rounded-full text-sm whitespace-nowrap transition-all duration-200 ${
+                  className={`flex items-center space-x-2 px-3 py-2 rounded-full text-sm whitespace-nowrap transition-all duration-200 ${
                     activeCategory === category.id 
                       ? 'bg-black text-white scale-105' 
                       : 'hover:bg-black/5'
@@ -234,13 +230,19 @@ function App() {
         </div>
       </div>
 
-      {/* Overlay for mobile nav */}
-      {isNavOpen && (
-        <div 
-          className="fixed inset-0 bg-black/20 z-20 lg:hidden"
-          onClick={() => setIsNavOpen(false)}
-        />
-      )}
+      {/* Add custom scrollbar styles */}
+      <style>{`
+        .hide-scrollbar {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+          display: none;
+        }
+        .custom-scrollbar {
+          overflow-x: hidden;
+        }
+      `}</style>
     </div>
   );
 }

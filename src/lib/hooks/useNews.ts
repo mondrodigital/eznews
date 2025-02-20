@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { TimeSlot, TimeBlock } from '../types';
-import { getTimeBlock } from '../storage';
 import { getNewsForTimeSlot } from '../news-service';
 
 export function useNews(timeSlot: TimeSlot) {
@@ -17,16 +16,7 @@ export function useNews(timeSlot: TimeSlot) {
         setError(null);
         console.log('useNews: Fetching news for time slot:', timeSlot);
         
-        let block;
-        if (import.meta.env.DEV) {
-          // Use mock data in development
-          console.log('Development mode: Using mock data');
-          block = await getTimeBlock(timeSlot);
-        } else {
-          // Use real API in production
-          console.log('Production mode: Fetching from API');
-          block = await getNewsForTimeSlot(timeSlot);
-        }
+        const block = await getNewsForTimeSlot(timeSlot);
         
         if (!mounted) return;
 

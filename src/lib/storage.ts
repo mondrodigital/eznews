@@ -82,63 +82,51 @@ export async function storeTimeBlock(timeSlot: TimeSlot, stories: NewsItem[]): P
 }
 
 export async function getTimeBlock(timeSlot: TimeSlot): Promise<TimeBlock | null> {
-  if (isBrowser && isTimeSlotAvailable(timeSlot)) {
-    // In browser, always return mock data
-    const mockStories = createMockStories(timeSlot);
-    return {
-      time: timeSlot,
-      date: new Date().toLocaleDateString('en-US', { 
-        day: 'numeric', 
-        month: 'numeric', 
-        year: '2-digit'
-      }).replace(/\//g, ' '),
-      stories: mockStories
-    };
-  }
-  return null;
+  const key = getStorageKey(timeSlot);
+  return await storage.get(key);
 }
 
 // Mock data generator
-function createMockStories(timeSlot: TimeSlot): NewsItem[] {
+export function createMockStories(timeSlot: TimeSlot): NewsItem[] {
   return [
     {
       id: '1',
       timestamp: new Date(),
       category: 'tech',
-      headline: 'AI Breakthrough in Natural Language Processing',
-      content: 'Scientists have developed a new AI model that demonstrates unprecedented language understanding capabilities.\n\nThe model shows remarkable ability to process and generate human-like text while requiring significantly less computational power.\n\nEarly tests indicate potential applications in education, healthcare, and scientific research.\n\nResearchers emphasize the importance of ethical considerations in deployment.',
-      source: 'Tech Daily',
-      image: 'https://placehold.co/600x400?text=Tech+News',
+      headline: 'Revolutionary AI Model Achieves Human-Level Understanding',
+      content: 'A groundbreaking artificial intelligence model has demonstrated unprecedented capabilities in natural language understanding and generation.\n\nResearchers at leading tech institutions have developed a neural network that can process and respond to complex queries with human-like comprehension and nuance. The system shows remarkable ability to understand context and maintain coherent, multi-turn conversations.\n\nExperts suggest this advancement could revolutionize fields from healthcare to education, while emphasizing the importance of ethical deployment and careful consideration of societal impacts.',
+      source: 'TechCrunch',
+      image: 'https://placehold.co/600x400/2563eb/ffffff?text=Tech+News',
       originalUrl: 'https://example.com/tech-news'
     },
     {
       id: '2',
-      timestamp: new Date(),
       category: 'finance',
-      headline: 'Global Markets Show Strong Recovery',
-      content: 'Stock markets worldwide have shown remarkable resilience with a strong recovery in major indices.\n\nInvestors are showing renewed confidence in technology and renewable energy sectors.\n\nAnalysts point to improving economic indicators and positive corporate earnings.\n\nExperts suggest maintaining a diversified portfolio approach.',
+      timestamp: new Date(),
+      headline: 'Global Markets Rally as Tech Sector Leads Recovery',
+      content: 'Stock markets worldwide have surged, with technology companies leading a remarkable recovery in global equities.\n\nInvestors are showing renewed confidence in growth stocks, particularly in artificial intelligence and semiconductor sectors. Major indices have reached new highs, supported by strong corporate earnings and positive economic indicators.\n\nAnalysts point to improving consumer sentiment and declining inflation pressures as key factors driving the market optimism.',
       source: 'Financial Times',
-      image: 'https://placehold.co/600x400?text=Finance+News',
+      image: 'https://placehold.co/600x400/059669/ffffff?text=Finance+News',
       originalUrl: 'https://example.com/finance-news'
     },
     {
       id: '3',
-      timestamp: new Date(),
       category: 'science',
-      headline: 'Breakthrough in Quantum Computing Research',
-      content: 'Scientists achieve major milestone in quantum computing stability.\n\nNew technique allows qubits to maintain coherence for unprecedented durations.\n\nThis development could accelerate practical quantum computer development.\n\nResearchers predict significant implications for cryptography and drug discovery.',
-      source: 'Science Today',
-      image: 'https://placehold.co/600x400?text=Science+News',
+      timestamp: new Date(),
+      headline: 'Scientists Achieve Breakthrough in Quantum Computing Stability',
+      content: 'Researchers have made a significant breakthrough in quantum computing, developing a new method to maintain quantum coherence for extended periods.\n\nThe innovation involves a novel approach to quantum error correction, potentially solving one of the field\'s most challenging obstacles. This development could accelerate the path to practical quantum computers.\n\nExperts suggest this breakthrough could have far-reaching implications for cryptography, drug discovery, and complex system modeling.',
+      source: 'Nature',
+      image: 'https://placehold.co/600x400/dc2626/ffffff?text=Science+News',
       originalUrl: 'https://example.com/science-news'
     },
     {
       id: '4',
-      timestamp: new Date(),
       category: 'health',
-      headline: 'New Research in Preventive Medicine',
-      content: 'Medical researchers identify promising preventive treatment approach.\n\nStudy shows significant reduction in common chronic condition risk factors.\n\nClinical trials demonstrate positive results with minimal side effects.\n\nExperts suggest potential for widespread public health impact.',
-      source: 'Health Weekly',
-      image: 'https://placehold.co/600x400?text=Health+News',
+      timestamp: new Date(),
+      headline: 'New Treatment Shows Promise in Clinical Trials',
+      content: 'A novel therapeutic approach has demonstrated exceptional results in treating multiple chronic conditions.\n\nClinical trials show significant improvement in patient outcomes with minimal side effects. The treatment combines innovative drug delivery methods with personalized medicine approaches.\n\nMedical experts are optimistic about the potential impact on public health, particularly for conditions that have traditionally been difficult to treat.',
+      source: 'Medical Journal',
+      image: 'https://placehold.co/600x400/0891b2/ffffff?text=Health+News',
       originalUrl: 'https://example.com/health-news'
     }
   ];
@@ -161,6 +149,11 @@ export async function getAllAvailableTimeBlocks(): Promise<TimeBlock[]> {
 
 // Helper to check if a time slot should be available
 export function isTimeSlotAvailable(timeSlot: TimeSlot): boolean {
+  // In development, all time slots are available
+  if (import.meta.env.DEV) {
+    return true;
+  }
+  
   const now = new Date();
   const hour = now.getHours();
   
