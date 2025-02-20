@@ -1,4 +1,4 @@
-import { VercelRequest, VercelResponse } from '@vercel/node';
+import type { VercelRequest, VercelResponse } from '@vercel/node';
 import cors from 'cors';
 import OpenAI from 'openai';
 
@@ -186,7 +186,7 @@ async function fetchAndProcessNews(timeSlot: string) {
 }
 
 // Export the API handler for Vercel
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+const handler = async function(req: VercelRequest, res: VercelResponse) {
   console.log('API handler started', {
     method: req.method,
     query: req.query,
@@ -248,4 +248,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       details: error instanceof Error ? error.message : 'Unknown error'
     });
   }
-} 
+};
+
+export default handler; 
