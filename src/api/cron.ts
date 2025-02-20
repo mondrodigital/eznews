@@ -5,7 +5,7 @@ export async function handleCronUpdate(req: Request) {
   try {
     // Verify the request is from Vercel Cron
     const authHeader = req.headers.get('authorization');
-    if (authHeader !== `Bearer ${import.meta.env.VITE_CRON_SECRET}`) {
+    if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
         { 
@@ -43,7 +43,10 @@ export async function handleCronUpdate(req: Request) {
   } catch (error) {
     console.error('Automated update failed:', error);
     return new Response(
-      JSON.stringify({ error: 'Failed to process update' }),
+      JSON.stringify({ 
+        error: 'Failed to process update',
+        details: error instanceof Error ? error.message : String(error)
+      }),
       { 
         status: 500,
         headers: { 'Content-Type': 'application/json' }

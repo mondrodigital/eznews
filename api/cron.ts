@@ -13,7 +13,7 @@ export default async function handler(
   // For testing, allow POST requests with the correct secret
   if (request.method === 'POST') {
     const { secret } = request.body;
-    if (secret !== process.env.VITE_CRON_SECRET) {
+    if (secret !== process.env.CRON_SECRET) {
       response.status(401).json({ error: 'Unauthorized' });
       return;
     }
@@ -22,7 +22,7 @@ export default async function handler(
   try {
     // Add authorization header for cron requests
     const headers = new Headers();
-    headers.set('authorization', `Bearer ${process.env.VITE_CRON_SECRET}`);
+    headers.set('authorization', `Bearer ${process.env.CRON_SECRET}`);
     
     const mockRequest = new Request(request.url || '', {
       method: 'GET',
@@ -39,7 +39,10 @@ export default async function handler(
     response.status(status).send(body);
   } catch (error) {
     console.error('Error in cron handler:', error);
-    response.status(500).json({ error: 'Internal server error' });
+    response.status(500).json({ 
+      error: 'Internal server error',
+      details: error instanceof Error ? error.message : String(error)
+    });
   }
 }
 
