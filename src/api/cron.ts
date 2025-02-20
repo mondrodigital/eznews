@@ -1,6 +1,5 @@
 import { processTimeSlot } from '../lib/process';
 import { TimeSlot } from '../lib/types';
-import { env } from '../lib/env';
 
 export async function handleCronUpdate(req: Request) {
   try {
@@ -12,11 +11,11 @@ export async function handleCronUpdate(req: Request) {
     });
 
     console.log('Environment check:', {
-      REDIS_URL: env.REDIS_URL ? 'Set' : 'Not set',
-      NEWS_API_KEY: env.NEWS_API_KEY ? 'Set' : 'Not set',
-      OPENAI_API_KEY: env.OPENAI_API_KEY ? 'Set' : 'Not set',
-      UNSPLASH_ACCESS_KEY: env.UNSPLASH_ACCESS_KEY ? 'Set' : 'Not set',
-      CRON_SECRET: env.CRON_SECRET ? 'Set' : 'Not set'
+      REDIS_URL: process.env.REDIS_URL ? 'Set' : 'Not set',
+      NEWS_API_KEY: process.env.NEWS_API_KEY ? 'Set' : 'Not set',
+      OPENAI_API_KEY: process.env.OPENAI_API_KEY ? 'Set' : 'Not set',
+      UNSPLASH_ACCESS_KEY: process.env.UNSPLASH_ACCESS_KEY ? 'Set' : 'Not set',
+      CRON_SECRET: process.env.CRON_SECRET ? 'Set' : 'Not set'
     });
 
     // Validate required environment variables
@@ -28,7 +27,7 @@ export async function handleCronUpdate(req: Request) {
       'CRON_SECRET'
     ];
 
-    const missingVars = requiredVars.filter(varName => !env[varName as keyof typeof env]);
+    const missingVars = requiredVars.filter(varName => !process.env[varName]);
     
     if (missingVars.length > 0) {
       const error = new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
@@ -51,10 +50,10 @@ export async function handleCronUpdate(req: Request) {
       const body = await req.json();
       console.log('Manual trigger body:', {
         hasSecret: !!body.secret,
-        secretMatch: body.secret === env.CRON_SECRET
+        secretMatch: body.secret === process.env.CRON_SECRET
       });
 
-      if (body.secret !== env.CRON_SECRET) {
+      if (body.secret !== process.env.CRON_SECRET) {
         const error = new Error('Unauthorized - Invalid secret');
         console.error('Auth failed:', error);
         return new Response(
@@ -67,7 +66,7 @@ export async function handleCronUpdate(req: Request) {
       }
     } else {
       // For automated cron, check the bearer token
-      if (authHeader !== `Bearer ${env.CRON_SECRET}`) {
+      if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
         const error = new Error('Unauthorized - Invalid token');
         console.error('Auth failed:', error);
         return new Response(
