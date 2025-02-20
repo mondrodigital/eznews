@@ -16,15 +16,28 @@ export function useNews(timeSlot: TimeSlot) {
         setError(null);
         console.log('useNews: Fetching news for time slot:', timeSlot);
         
-        const block = await getNewsForTimeSlot(timeSlot);
+        const response = await fetch(`/api/news?timeSlot=${timeSlot}`);
+        console.log('API Response status:', response.status);
+        
+        const data = await response.json();
+        console.log('API Response data:', data);
         
         if (!mounted) return;
 
-        if (!block) {
+        if (data.error) {
+          console.error('API returned error:', data.error, data.details);
+          setError(data.error);
+          setTimeBlock(null);
+          return;
+        }
+
+        if (!data.stories?.length) {
+          console.log('No stories in response');
           setError('No news available at this time');
           setTimeBlock(null);
         } else {
-          setTimeBlock(block);
+          console.log(`Received ${data.stories.length} stories`);
+          setTimeBlock(data);
           setError(null);
         }
       } catch (err) {

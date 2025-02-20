@@ -25,21 +25,18 @@ async function fetchAndProcessNews(category: string, timeSlot: string) {
     throw new Error('NEWS_API_KEY is not configured');
   }
 
-  // Get today's date at midnight
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
   try {
-    const response = await fetch(
-      `https://newsapi.org/v2/top-headlines?` +
-      `category=${category}&` +
-      `country=us&` +
-      `language=en&` +
-      `pageSize=10&` +
-      `apiKey=${NEWS_API_KEY}`
-    );
-
+    console.log(`Fetching news for category: ${category}`);
+    const url = `https://newsapi.org/v2/top-headlines?category=${category}&country=us&language=en&pageSize=10&apiKey=${NEWS_API_KEY}`;
+    console.log('News API URL:', url);
+    
+    const response = await fetch(url);
     const data = await response.json();
+    console.log(`News API response for ${category}:`, {
+      status: data.status,
+      totalResults: data.totalResults,
+      articleCount: data.articles?.length
+    });
 
     if (data.status === 'error') {
       console.error('News API Error:', data.message);
@@ -53,11 +50,13 @@ async function fetchAndProcessNews(category: string, timeSlot: string) {
 
     // Take the first 3 articles
     const selectedArticles = data.articles.slice(0, 3);
+    console.log(`Selected ${selectedArticles.length} articles for ${category}`);
 
     // Process each article with OpenAI
     const processedArticles = await Promise.all(
       selectedArticles.map(async (article: any) => {
         try {
+          console.log(`Processing article: ${article.title}`);
           const completion = await openai.chat.completions.create({
             model: "gpt-3.5-turbo",
             messages: [
@@ -74,7 +73,7 @@ async function fetchAndProcessNews(category: string, timeSlot: string) {
             temperature: 0.7,
           });
 
-          return {
+          const processedArticle = {
             id: Math.random().toString(36).substring(7),
             timestamp: new Date(article.publishedAt),
             category,
@@ -84,10 +83,12 @@ async function fetchAndProcessNews(category: string, timeSlot: string) {
             image: article.urlToImage || `https://placehold.co/600x400/2563eb/ffffff?text=${category}+News`,
             originalUrl: article.url
           };
+          console.log(`Successfully processed article: ${processedArticle.headline}`);
+          return processedArticle;
         } catch (error) {
           console.error('Error processing article with OpenAI:', error);
           // Return the article without OpenAI processing
-          return {
+          const fallbackArticle = {
             id: Math.random().toString(36).substring(7),
             timestamp: new Date(article.publishedAt),
             category,
@@ -97,10 +98,13 @@ async function fetchAndProcessNews(category: string, timeSlot: string) {
             image: article.urlToImage || `https://placehold.co/600x400/2563eb/ffffff?text=${category}+News`,
             originalUrl: article.url
           };
+          console.log(`Falling back to unprocessed article: ${fallbackArticle.headline}`);
+          return fallbackArticle;
         }
       })
     );
 
+    console.log(`Returning ${processedArticles.length} articles for ${category}`);
     return processedArticles;
   } catch (error) {
     console.error(`Error in fetchAndProcessNews for ${category}:`, error);
