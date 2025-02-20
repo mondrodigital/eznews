@@ -1,5 +1,7 @@
 import { TimeBlock, TimeSlot, NewsItem } from './types';
 import { isBrowser } from './client-env';
+import Redis from 'ioredis';
+import { serverEnv } from './server-env';
 
 const TTL = 24 * 60 * 60; // 24 hours in seconds
 
@@ -8,22 +10,63 @@ function getStorageKey(timeSlot: TimeSlot): string {
   return `news:${timeSlot}`;
 }
 
+// Redis client management
+let redisClient: Redis | null = null;
+
+function getRedisClient(): Redis | null {
+  if (isBrowser) return null;
+  
+  if (!redisClient && serverEnv.REDIS_URL) {
+    redisClient = new Redis(serverEnv.REDIS_URL);
+  }
+  return redisClient;
+}
+
 // Storage implementation
 const storage = {
-  async set(key: string, value: any) {
+  async set(key: string, value: any, ttl?: number) {
     if (isBrowser) {
       try {
         localStorage.setItem(key, JSON.stringify(value));
+        
+        // Implement TTL for localStorage
+        if (ttl) {
+          const expiryTime = Date.now() + (ttl * 1000);
+          localStorage.setItem(`${key}:expiry`, expiryTime.toString());
+        }
       } catch (error) {
         console.error('Failed to store in localStorage:', error);
       }
       return;
+    }
+    
+    const redis = getRedisClient();
+    if (redis) {
+      try {
+        if (ttl) {
+          await redis.set(key, JSON.stringify(value), 'EX', ttl);
+        } else {
+          await redis.set(key, JSON.stringify(value));
+        }
+      } catch (error) {
+        console.error('Failed to store in Redis:', error);
+      }
     }
   },
 
   async get(key: string): Promise<any> {
     if (isBrowser) {
       try {
+        // Check TTL for localStorage
+        const expiryTime = localStorage.getItem(`${key}:expiry`);
+        if (expiryTime) {
+          if (Date.now() > parseInt(expiryTime)) {
+            localStorage.removeItem(key);
+            localStorage.removeItem(`${key}:expiry`);
+            return null;
+          }
+        }
+        
         const data = localStorage.getItem(key);
         return data ? JSON.parse(data) : null;
       } catch (error) {
@@ -31,7 +74,36 @@ const storage = {
         return null;
       }
     }
+    
+    const redis = getRedisClient();
+    if (redis) {
+      try {
+        const data = await redis.get(key);
+        return data ? JSON.parse(data) : null;
+      } catch (error) {
+        console.error('Failed to read from Redis:', error);
+        return null;
+      }
+    }
+    
     return null;
+  },
+
+  async cleanup() {
+    if (isBrowser) {
+      // Cleanup expired localStorage items
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.endsWith(':expiry')) {
+          const expiryTime = parseInt(localStorage.getItem(key) || '0');
+          if (Date.now() > expiryTime) {
+            const actualKey = key.replace(':expiry', '');
+            localStorage.removeItem(actualKey);
+            localStorage.removeItem(key);
+          }
+        }
+      }
+    }
   }
 };
 
@@ -47,7 +119,7 @@ export async function storeTimeBlock(timeSlot: TimeSlot, stories: NewsItem[]): P
   };
 
   const key = getStorageKey(timeSlot);
-  await storage.set(key, timeBlock);
+  await storage.set(key, timeBlock, TTL);
 }
 
 export async function getTimeBlock(timeSlot: TimeSlot): Promise<TimeBlock | null> {
@@ -101,6 +173,26 @@ function createMockStories(timeSlot: TimeSlot): NewsItem[] {
       source: 'Financial Times',
       image: 'https://placehold.co/600x400?text=Finance+News',
       originalUrl: 'https://example.com/finance-news'
+    },
+    {
+      id: '3',
+      timestamp: new Date(),
+      category: 'science',
+      headline: 'Breakthrough in Quantum Computing Research',
+      content: 'Scientists achieve major milestone in quantum computing stability.\n\nNew technique allows qubits to maintain coherence for unprecedented durations.\n\nThis development could accelerate practical quantum computer development.\n\nResearchers predict significant implications for cryptography and drug discovery.',
+      source: 'Science Today',
+      image: 'https://placehold.co/600x400?text=Science+News',
+      originalUrl: 'https://example.com/science-news'
+    },
+    {
+      id: '4',
+      timestamp: new Date(),
+      category: 'health',
+      headline: 'New Research in Preventive Medicine',
+      content: 'Medical researchers identify promising preventive treatment approach.\n\nStudy shows significant reduction in common chronic condition risk factors.\n\nClinical trials demonstrate positive results with minimal side effects.\n\nExperts suggest potential for widespread public health impact.',
+      source: 'Health Weekly',
+      image: 'https://placehold.co/600x400?text=Health+News',
+      originalUrl: 'https://example.com/health-news'
     }
   ];
 }
