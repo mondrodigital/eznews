@@ -10,7 +10,8 @@
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "test-update": "tsx src/scripts/test-update.ts",
-    "test-retrieve": "tsx src/scripts/test-retrieve.ts"
+    "test-retrieve": "tsx src/scripts/test-retrieve.ts",
+    "test-kv": "tsx src/scripts/test-kv.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.7",
