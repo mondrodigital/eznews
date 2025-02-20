@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { ChevronDown, Menu, Loader2 } from 'lucide-react';
 import { useNews } from './lib/hooks/useNews';
 import { TimeSlot } from './lib/types';

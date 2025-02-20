@@ -1,9 +1,9 @@
-import dotenv from 'dotenv';
+import { config } from 'dotenv';
 import { processTimeSlot } from '@/lib/process';
-import path from 'path';
+import { resolve } from 'path';
 
 // Load environment variables from the root directory
-dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+config({ path: resolve(process.cwd(), '.env') });
 
 // Debug environment variables
 console.log('Environment variables loaded:', {
