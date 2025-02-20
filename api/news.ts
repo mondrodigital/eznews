@@ -1,10 +1,13 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import cors from 'cors';
 import OpenAI from 'openai';
-import { getCachedData, setCachedData, shouldRefreshCache, getCacheKey } from '../server/storage';
 
 const NEWS_API_KEY = process.env.NEWS_API_KEY;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+
+// In-memory cache
+const cache = new Map();
+const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 
 console.log('Server environment check:', {
   hasNewsApiKey: !!NEWS_API_KEY,
@@ -16,6 +19,51 @@ const openai = new OpenAI({
 });
 
 const CATEGORIES = ['tech', 'finance', 'science', 'health'] as const;
+
+function getCacheKey(timeSlot: string): string {
+  const date = new Date().toLocaleDateString('en-US', { 
+    day: 'numeric', 
+    month: 'numeric', 
+    year: '2-digit'
+  }).replace(/\//g, '-');
+  return `news:${date}:${timeSlot}`;
+}
+
+function shouldRefreshCache(timeSlot: string): boolean {
+  const now = new Date();
+  const hour = now.getHours();
+  const minutes = now.getMinutes();
+
+  switch(timeSlot) {
+    case '10AM':
+      return (hour === 10 && minutes <= 5);
+    case '3PM':
+      return (hour === 15 && minutes <= 5);
+    case '8PM':
+      return (hour === 20 && minutes <= 5);
+    default:
+      return false;
+  }
+}
+
+function getCachedData(key: string) {
+  const entry = cache.get(key);
+  if (!entry) return null;
+  
+  if (Date.now() - entry.timestamp > CACHE_TTL) {
+    cache.delete(key);
+    return null;
+  }
+  
+  return entry.data;
+}
+
+function setCachedData(key: string, data: any) {
+  cache.set(key, {
+    data,
+    timestamp: Date.now()
+  });
+}
 
 async function fetchNewsForCategory(category: string) {
   console.log(`Fetching news for category: ${category}`);
