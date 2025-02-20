@@ -16,6 +16,10 @@
   ],
   "routes": [
     {
+      "src": "/api/news",
+      "dest": "/api/news.ts"
+    },
+    {
       "src": "/api/(.*)",
       "dest": "/api/$1"
     },
