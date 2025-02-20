@@ -20,13 +20,40 @@ const openai = new OpenAI({
 
 const CATEGORIES = ['tech', 'finance', 'science', 'health'] as const;
 
-async function fetchAndProcessNews(category: string) {
+async function fetchAndProcessNews(category: string, timeSlot: string) {
   if (!NEWS_API_KEY) {
     throw new Error('NEWS_API_KEY is not configured');
   }
 
+  // Calculate the time window for the given time slot
+  const now = new Date();
+  let fromDate = new Date();
+  
+  switch (timeSlot) {
+    case '10AM':
+      fromDate.setHours(4, 0, 0, 0); // From 4 AM
+      now.setHours(10, 59, 59, 999); // Until 11 AM
+      break;
+    case '3PM':
+      fromDate.setHours(11, 0, 0, 0); // From 11 AM
+      now.setHours(15, 59, 59, 999); // Until 4 PM
+      break;
+    case '8PM':
+      fromDate.setHours(16, 0, 0, 0); // From 4 PM
+      now.setHours(23, 59, 59, 999); // Until midnight
+      break;
+    default:
+      fromDate.setHours(0, 0, 0, 0); // Full day as fallback
+  }
+
   const response = await fetch(
-    `https://newsapi.org/v2/top-headlines?category=${category}&language=en&pageSize=5&apiKey=${NEWS_API_KEY}`,
+    `https://newsapi.org/v2/top-headlines?` +
+    `category=${category}&` +
+    `language=en&` +
+    `pageSize=10&` + // Request more to account for filtering
+    `from=${fromDate.toISOString()}&` +
+    `to=${now.toISOString()}&` +
+    `apiKey=${NEWS_API_KEY}`,
     { signal: AbortSignal.timeout(9000) }
   );
 
@@ -37,13 +64,22 @@ async function fetchAndProcessNews(category: string) {
   const data = await response.json();
   
   if (!data.articles?.length) {
-    console.log(`No articles found for category: ${category}`);
+    console.log(`No articles found for category: ${category} in time slot: ${timeSlot}`);
     return [];
   }
 
+  // Filter articles by publication time
+  const filteredArticles = data.articles.filter((article: { publishedAt: string }) => {
+    const pubDate = new Date(article.publishedAt);
+    return pubDate >= fromDate && pubDate <= now;
+  });
+
+  // Take only the first 3 articles after filtering
+  const selectedArticles = filteredArticles.slice(0, 3);
+
   // Process each article with OpenAI
   const processedArticles = await Promise.all(
-    data.articles.map(async (article: any) => {
+    selectedArticles.map(async (article: any) => {
       try {
         const completion = await openai.chat.completions.create({
           model: "gpt-3.5-turbo",
@@ -142,7 +178,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       console.log('No cached data found, fetching fresh news');
       // Fetch news for each category
       const allStories = await Promise.all(
-        CATEGORIES.map(category => fetchAndProcessNews(category))
+        CATEGORIES.map(category => fetchAndProcessNews(category, timeSlot as string))
       );
 
       // Combine all stories
