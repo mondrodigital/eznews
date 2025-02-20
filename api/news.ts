@@ -25,34 +25,16 @@ async function fetchAndProcessNews(category: string, timeSlot: string) {
     throw new Error('NEWS_API_KEY is not configured');
   }
 
-  // Calculate the time window for the given time slot
-  const now = new Date();
-  let fromDate = new Date();
-  
-  switch (timeSlot) {
-    case '10AM':
-      fromDate.setHours(4, 0, 0, 0); // From 4 AM
-      now.setHours(10, 59, 59, 999); // Until 11 AM
-      break;
-    case '3PM':
-      fromDate.setHours(11, 0, 0, 0); // From 11 AM
-      now.setHours(15, 59, 59, 999); // Until 4 PM
-      break;
-    case '8PM':
-      fromDate.setHours(16, 0, 0, 0); // From 4 PM
-      now.setHours(23, 59, 59, 999); // Until midnight
-      break;
-    default:
-      fromDate.setHours(0, 0, 0, 0); // Full day as fallback
-  }
+  // Get today's date at midnight
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
   const response = await fetch(
     `https://newsapi.org/v2/top-headlines?` +
     `category=${category}&` +
     `language=en&` +
     `pageSize=10&` + // Request more to account for filtering
-    `from=${fromDate.toISOString()}&` +
-    `to=${now.toISOString()}&` +
+    `from=${today.toISOString()}&` +
     `apiKey=${NEWS_API_KEY}`,
     { signal: AbortSignal.timeout(9000) }
   );
@@ -68,14 +50,8 @@ async function fetchAndProcessNews(category: string, timeSlot: string) {
     return [];
   }
 
-  // Filter articles by publication time
-  const filteredArticles = data.articles.filter((article: { publishedAt: string }) => {
-    const pubDate = new Date(article.publishedAt);
-    return pubDate >= fromDate && pubDate <= now;
-  });
-
-  // Take only the first 3 articles after filtering
-  const selectedArticles = filteredArticles.slice(0, 3);
+  // Take the first 3 articles
+  const selectedArticles = data.articles.slice(0, 3);
 
   // Process each article with OpenAI
   const processedArticles = await Promise.all(
