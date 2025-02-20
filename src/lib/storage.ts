@@ -6,9 +6,20 @@ const TTL = 24 * 60 * 60; // 24 hours in seconds
 // Initialize Redis client
 let redisClient: Redis | null = null;
 
+// Helper to get environment variables in both Node.js and browser
+function getEnvVar(key: string): string | undefined {
+  if (typeof process !== 'undefined' && process.env) {
+    return process.env[key];
+  }
+  if (typeof import.meta !== 'undefined' && import.meta.env) {
+    return import.meta.env[`VITE_${key}`];
+  }
+  return undefined;
+}
+
 function getRedisClient() {
   if (!redisClient) {
-    const redisUrl = process.env.REDIS_URL || import.meta.env.VITE_REDIS_URL;
+    const redisUrl = getEnvVar('REDIS_URL');
     if (!redisUrl) {
       throw new Error('REDIS_URL environment variable is not set');
     }

@@ -1,16 +1,28 @@
 import { processTimeSlot } from '../lib/process';
 import { TimeSlot } from '../lib/types';
 
+// Helper to get environment variables in both Node.js and browser
+function getEnvVar(key: string): string | undefined {
+  if (typeof process !== 'undefined' && process.env) {
+    return process.env[key];
+  }
+  if (typeof import.meta !== 'undefined' && import.meta.env) {
+    return import.meta.env[`VITE_${key}`];
+  }
+  return undefined;
+}
+
 export async function handleCronUpdate(req: Request) {
   try {
     // Verify the request is authorized
     const authHeader = req.headers.get('authorization');
     const isManualTrigger = req.method === 'POST';
+    const cronSecret = getEnvVar('CRON_SECRET');
     
     // For manual triggers, check the secret in the body
     if (isManualTrigger) {
       const body = await req.json();
-      if (body.secret !== process.env.CRON_SECRET) {
+      if (body.secret !== cronSecret) {
         return new Response(
           JSON.stringify({ error: 'Unauthorized - Invalid secret' }),
           { 
@@ -21,7 +33,7 @@ export async function handleCronUpdate(req: Request) {
       }
     } else {
       // For automated cron, check the bearer token
-      if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+      if (authHeader !== `Bearer ${cronSecret}`) {
         return new Response(
           JSON.stringify({ error: 'Unauthorized - Invalid token' }),
           { 
