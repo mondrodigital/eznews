@@ -73,11 +73,18 @@ async function fetchAndProcessNews(category: string, timeSlot: string) {
           temperature: 0.7,
         });
 
+        // Remove source name from headline if it exists
+        let headline = article.title;
+        const sourcePattern = new RegExp(` - ${article.source.name}$`);
+        headline = headline.replace(sourcePattern, '');
+        // Also remove any trailing dash with whitespace
+        headline = headline.replace(/\s*-\s*$/, '');
+
         return {
           id: Math.random().toString(36).substring(7),
           timestamp: new Date(article.publishedAt),
           category,
-          headline: article.title,
+          headline,
           content: completion.choices[0]?.message?.content || article.content || article.description,
           source: article.source.name,
           image: article.urlToImage || `https://placehold.co/600x400/2563eb/ffffff?text=${category}+News`,
