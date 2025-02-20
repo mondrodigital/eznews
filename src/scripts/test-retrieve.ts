@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import { TimeSlot } from '@/lib/types';
+import Redis from 'ioredis';
 import path from 'path';
 
 // Load environment variables from the root directory
@@ -9,22 +10,22 @@ async function testRetrieve() {
   try {
     console.log('Retrieving news for all time slots...');
     
-    // Import KV dynamically
-    const { kv } = await import('@vercel/kv');
+    // Initialize Redis client
+    const redis = new Redis(process.env.REDIS_URL!);
     
     // Check all time slots
     const timeSlots: TimeSlot[] = ['10AM', '3PM', '8PM'];
     
     for (const timeSlot of timeSlots) {
       console.log(`\nChecking ${timeSlot} time slot...`);
-      const data = await kv.get(`news:${timeSlot}`);
+      const data = await redis.get(`news:${timeSlot}`);
       
       if (!data) {
         console.log(`No data found for ${timeSlot} time slot`);
         continue;
       }
 
-      const timeBlock = typeof data === 'string' ? JSON.parse(data) : data;
+      const timeBlock = JSON.parse(data);
 
       console.log('\nTime Block:', {
         time: timeBlock.time,
@@ -48,6 +49,9 @@ async function testRetrieve() {
         console.log('------------\n');
       });
     }
+
+    // Close Redis connection
+    await redis.quit();
   } catch (error) {
     console.error('Error retrieving data:', error);
     process.exit(1);
