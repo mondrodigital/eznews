@@ -1,4 +1,11 @@
 import { TimeBlock, TimeSlot, NewsItem } from './types';
+import Redis from 'ioredis';
+import { env } from './env';
+
+const TTL = 24 * 60 * 60; // 24 hours in seconds
+
+// Helper to determine if we're in a browser environment
+const isBrowser = typeof window !== 'undefined';
 
 // Mock data generator
 function createMockStories(timeSlot: TimeSlot): NewsItem[] {
@@ -48,8 +55,73 @@ function createMockStories(timeSlot: TimeSlot): NewsItem[] {
 
 // Storage key helper
 function getStorageKey(timeSlot: TimeSlot): string {
-  return `news_${timeSlot}`;
+  return `news:${timeSlot}`;
 }
+
+// Redis client management
+let redisClient: Redis | null = null;
+
+function getRedisClient(): Redis | null {
+  if (isBrowser) return null;
+  
+  if (!redisClient) {
+    if (!env.REDIS_URL) {
+      console.warn('Redis URL not found, falling back to mock data');
+      return null;
+    }
+    redisClient = new Redis(env.REDIS_URL);
+  }
+  return redisClient;
+}
+
+// Storage implementation
+const storage = {
+  async set(key: string, value: any, ttl?: number) {
+    const redis = getRedisClient();
+    
+    if (redis) {
+      try {
+        if (ttl) {
+          await redis.set(key, JSON.stringify(value), 'EX', ttl);
+        } else {
+          await redis.set(key, JSON.stringify(value));
+        }
+        console.log(`Successfully stored in Redis: ${key}`);
+      } catch (error) {
+        console.error('Failed to store in Redis:', error);
+        if (isBrowser) {
+          localStorage.setItem(key, JSON.stringify(value));
+        }
+      }
+    } else if (isBrowser) {
+      localStorage.setItem(key, JSON.stringify(value));
+    }
+  },
+
+  async get(key: string): Promise<any> {
+    const redis = getRedisClient();
+    
+    if (redis) {
+      try {
+        const data = await redis.get(key);
+        if (data) {
+          return JSON.parse(data);
+        }
+      } catch (error) {
+        console.error('Failed to read from Redis:', error);
+      }
+    }
+    
+    if (isBrowser) {
+      const data = localStorage.getItem(key);
+      if (data) {
+        return JSON.parse(data);
+      }
+    }
+    
+    return null;
+  }
+};
 
 export async function storeTimeBlock(timeSlot: TimeSlot, stories: NewsItem[]): Promise<void> {
   const date = new Date().toLocaleDateString('en-US', { 
@@ -64,23 +136,20 @@ export async function storeTimeBlock(timeSlot: TimeSlot, stories: NewsItem[]): P
     stories
   };
 
-  try {
-    localStorage.setItem(getStorageKey(timeSlot), JSON.stringify(timeBlock));
-    console.log(`Successfully stored data for ${timeSlot}`);
-  } catch (error) {
-    console.error('Failed to store data:', error);
-  }
+  const key = getStorageKey(timeSlot);
+  await storage.set(key, timeBlock, TTL);
 }
 
 export async function getTimeBlock(timeSlot: TimeSlot): Promise<TimeBlock | null> {
-  try {
-    // First try to get from localStorage
-    const stored = localStorage.getItem(getStorageKey(timeSlot));
-    if (stored) {
-      return JSON.parse(stored);
-    }
+  const key = getStorageKey(timeSlot);
+  const data = await storage.get(key);
+  
+  if (data) {
+    return data;
+  }
 
-    // If not found, return mock data
+  if (isBrowser) {
+    // If in browser and no data found, return mock data
     const mockStories = createMockStories(timeSlot);
     const mockTimeBlock: TimeBlock = {
       time: timeSlot,
@@ -95,10 +164,9 @@ export async function getTimeBlock(timeSlot: TimeSlot): Promise<TimeBlock | null
     // Store mock data for future use
     await storeTimeBlock(timeSlot, mockStories);
     return mockTimeBlock;
-  } catch (error) {
-    console.error('Failed to get time block:', error);
-    return null;
   }
+
+  return null;
 }
 
 export async function getAllAvailableTimeBlocks(): Promise<TimeBlock[]> {
