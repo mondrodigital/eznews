@@ -1,11 +1,15 @@
 import { TimeBlock, TimeSlot, NewsItem } from './types';
 import Redis from 'ioredis';
+import { clientEnv } from './client-env';
 import { serverEnv } from './server-env';
 
 const TTL = 24 * 60 * 60; // 24 hours in seconds
 
 // Helper to determine if we're in a browser environment
 const isBrowser = typeof window !== 'undefined';
+
+// Get the appropriate environment variables
+const env = isBrowser ? clientEnv : serverEnv;
 
 // Mock data generator
 function createMockStories(timeSlot: TimeSlot): NewsItem[] {
@@ -65,11 +69,11 @@ function getRedisClient(): Redis | null {
   if (isBrowser) return null;
   
   if (!redisClient) {
-    if (!serverEnv.REDIS_URL) {
+    if (!env.REDIS_URL) {
       console.warn('Redis URL not found, falling back to mock data');
       return null;
     }
-    redisClient = new Redis(serverEnv.REDIS_URL);
+    redisClient = new Redis(env.REDIS_URL);
   }
   return redisClient;
 }

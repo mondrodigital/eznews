@@ -6,10 +6,6 @@
     "esModuleInterop": true,
     "strict": true,
     "skipLibCheck": true,
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["../src/*"]
-    },
     "outDir": "dist"
   },
   "include": ["./**/*.ts", "../src/lib/**/*.ts"],

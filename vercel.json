@@ -10,19 +10,13 @@
     },
     {
       "src": "api/**/*.ts",
-      "use": "@vercel/node",
-      "config": {
-        "includeFiles": [
-          "src/lib/**/*.ts"
-        ],
-        "tsconfig": "api/tsconfig.json"
-      }
+      "use": "@vercel/node"
     }
   ],
   "routes": [
     {
-      "src": "/api/cron",
-      "dest": "/api/cron.ts"
+      "src": "/api/(.*)",
+      "dest": "/api/$1"
     },
     {
       "src": "^/assets/(.*)$",
@@ -36,7 +30,7 @@
   "crons": [
     {
       "path": "/api/cron",
-      "schedule": "0 9 * * *"
+      "schedule": "55 9,14,19 * * *"
     }
   ]
 } 
