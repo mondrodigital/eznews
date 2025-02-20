@@ -1,5 +1,5 @@
 import { NewsItem, NewsCategory, CATEGORY_MAPPING } from './types';
-import { clientEnv } from './client-env';
+import { serverEnv } from './server-env';
 
 export interface NewsAPIArticle {
   source: {
@@ -22,12 +22,12 @@ interface NewsAPIResponse {
 }
 
 export async function fetchNewsForCategory(category: NewsCategory): Promise<NewsAPIArticle[]> {
-  if (!clientEnv.NEWS_API_KEY) {
+  if (!serverEnv.NEWS_API_KEY) {
     throw new Error('NEWS_API_KEY is not set');
   }
 
   const apiUrl = new URL('https://newsapi.org/v2/top-headlines');
-  apiUrl.searchParams.append('apiKey', clientEnv.NEWS_API_KEY);
+  apiUrl.searchParams.append('apiKey', serverEnv.NEWS_API_KEY);
   apiUrl.searchParams.append('category', CATEGORY_MAPPING[category]);
   apiUrl.searchParams.append('language', 'en');
   apiUrl.searchParams.append('pageSize', '10');

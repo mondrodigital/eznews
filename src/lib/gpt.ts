@@ -1,18 +1,18 @@
 import OpenAI from 'openai';
 import { NewsAPIArticle } from './news';
 import { NewsItem, NewsCategory } from './types';
-import { clientEnv } from './client-env';
+import { serverEnv } from './server-env';
 
 // Initialize OpenAI client lazily
 let openai: OpenAI;
 
 function getOpenAIClient() {
   if (!openai) {
-    if (!clientEnv.OPENAI_API_KEY) {
+    if (!serverEnv.OPENAI_API_KEY) {
       throw new Error('OPENAI_API_KEY environment variable is not set');
     }
     openai = new OpenAI({
-      apiKey: clientEnv.OPENAI_API_KEY
+      apiKey: serverEnv.OPENAI_API_KEY
     });
   }
   return openai;

@@ -3,7 +3,6 @@ import { ChevronDown, Menu, Loader2 } from 'lucide-react';
 import { useNews } from './lib/hooks/useNews';
 import { TimeSlot } from './lib/types';
 
-// Remove mock data initialization
 console.log('App initializing...');
 
 const categories = [
@@ -14,10 +13,34 @@ const categories = [
   { id: 'health', name: 'Health', emoji: '⚕️' }
 ];
 
+function isTimeSlotAvailable(timeSlot: TimeSlot): boolean {
+  const now = new Date();
+  const hour = now.getHours();
+  
+  switch (timeSlot) {
+    case '10AM':
+      return hour >= 10;
+    case '3PM':
+      return hour >= 15;
+    case '8PM':
+      return hour >= 20;
+    default:
+      return false;
+  }
+}
+
+function getDefaultTimeSlot(): TimeSlot {
+  const hour = new Date().getHours();
+  if (hour >= 20) return '8PM';
+  if (hour >= 15) return '3PM';
+  if (hour >= 10) return '10AM';
+  return '10AM';
+}
+
 function App() {
   console.log('App component rendering');
   
-  const [activeTime, setActiveTime] = useState<TimeSlot>("10AM");
+  const [activeTime, setActiveTime] = useState<TimeSlot>(getDefaultTimeSlot());
   const [expandedStory, setExpandedStory] = useState<string | null>(null);
   const [scrollProgress, setScrollProgress] = useState(0);
   const [activeCategory, setActiveCategory] = useState('all');
@@ -52,18 +75,20 @@ function App() {
   }, []);
 
   const handleTimeSelect = (time: TimeSlot) => {
+    if (!isTimeSlotAvailable(time)) {
+      return; // Don't allow selection of unavailable time slots
+    }
     console.log('Time selected:', time);
     setActiveTime(time);
     setIsNavOpen(false);
   };
 
+  if (loading) {
+    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
+  }
+
   if (error) {
-    console.error('Error state:', error);
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-red-500">Error loading news: {error}</div>
-      </div>
-    );
+    return <div className="text-red-500 p-4">{error}</div>;
   }
 
   return (
@@ -86,30 +111,37 @@ function App() {
         {/* Vertical Navigation - Mobile Slide-out */}
         <div className={`
           fixed top-0 left-0 w-64 h-screen bg-white border-r border-black/5 z-30 
-          transform transition-transform duration-300 lg:translate-x-0 lg:relative lg:w-28 lg:h-auto
+          transform transition-transform duration-300 
+          lg:sticky lg:translate-x-0 lg:top-0 lg:w-28 lg:h-screen
           ${isNavOpen ? 'translate-x-0' : '-translate-x-full'}
         `}>
           <div className="text-sm font-medium mb-8 px-6 pt-16 lg:pt-4">{timeBlock?.date}</div>
           <div className="flex flex-col space-y-1 px-6">
-            {(['10AM', '3PM', '8PM'] as TimeSlot[]).map((time) => (
-              <button
-                key={time}
-                onClick={() => handleTimeSelect(time)}
-                className={`relative py-4 text-sm tracking-wide text-left group ${
-                  activeTime === time 
-                    ? 'text-black font-medium bg-black/[0.03] rounded-sm' 
-                    : 'text-gray-400 hover:text-gray-600'
-                } transition-all duration-200`}
-              >
-                <div className="px-2">
-                  <span>{time}</span>
-                </div>
-              </button>
-            ))}
+            {(['10AM', '3PM', '8PM'] as TimeSlot[]).map((time) => {
+              const available = isTimeSlotAvailable(time);
+              return (
+                <button
+                  key={time}
+                  onClick={() => handleTimeSelect(time)}
+                  disabled={!available}
+                  className={`relative py-4 text-sm tracking-wide text-left group ${
+                    activeTime === time 
+                      ? 'text-black font-medium bg-black/[0.03] rounded-sm' 
+                      : available
+                        ? 'text-gray-400 hover:text-gray-600'
+                        : 'text-gray-300 cursor-not-allowed'
+                  } transition-all duration-200`}
+                >
+                  <div className="px-2">
+                    <span>{time}</span>
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        <div className="flex-1">
+        <div className="flex-1 min-h-screen">
           {/* Categories Bar */}
           <div className="sticky top-0 w-full bg-white border-b border-black/5 z-40">
             <div className="flex items-center space-x-1 px-4 lg:px-6 py-3 overflow-x-auto custom-scrollbar">
@@ -132,7 +164,7 @@ function App() {
 
           {/* Main Content */}
           <div className="px-4 lg:px-12">
-            <div className="w-full max-w-[800px] mx-auto">
+            <div className="w-full max-w-[400px] mx-auto">
               {loading ? (
                 <div className="flex items-center justify-center py-20">
                   <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
@@ -165,8 +197,8 @@ function App() {
                       
                       {/* Expanded Content */}
                       {expandedStory === story.id && (
-                        <div className="pt-2 space-y-6">
-                          <div className="aspect-[4/3] bg-gray-100 overflow-hidden image-noise rounded-sm">
+                        <div className="pt-2 space-y-4">
+                          <div className="aspect-[3/2] bg-gray-100 overflow-hidden rounded-sm">
                             <img 
                               src={story.image} 
                               alt={story.headline}
@@ -174,13 +206,13 @@ function App() {
                             />
                           </div>
 
-                          <div className="space-y-4 text-sm leading-relaxed">
+                          <div className="space-y-3 text-sm leading-relaxed">
                             {story.content.split('\n\n').map((paragraph, index) => (
                               <p key={index} className="text-gray-800">{paragraph}</p>
                             ))}
                           </div>
 
-                          <div className="pt-4 border-t border-gray-200">
+                          <div className="pt-3 border-t border-gray-200">
                             <p className="text-sm text-gray-500 font-medium">Source: {story.source}</p>
                             <a 
                               href={story.originalUrl} 

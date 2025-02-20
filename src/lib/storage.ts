@@ -1,7 +1,5 @@
 import { TimeBlock, TimeSlot, NewsItem } from './types';
 import { isBrowser } from './client-env';
-import Redis from 'ioredis';
-import { serverEnv } from './server-env';
 
 const TTL = 24 * 60 * 60; // 24 hours in seconds
 
@@ -10,97 +8,58 @@ function getStorageKey(timeSlot: TimeSlot): string {
   return `news:${timeSlot}`;
 }
 
-// Redis client management
-let redisClient: Redis | null = null;
-
-function getRedisClient(): Redis | null {
-  if (isBrowser) return null;
-  
-  if (!redisClient && serverEnv.REDIS_URL) {
-    redisClient = new Redis(serverEnv.REDIS_URL);
-  }
-  return redisClient;
-}
-
 // Storage implementation
 const storage = {
   async set(key: string, value: any, ttl?: number) {
-    if (isBrowser) {
-      try {
-        localStorage.setItem(key, JSON.stringify(value));
-        
-        // Implement TTL for localStorage
-        if (ttl) {
-          const expiryTime = Date.now() + (ttl * 1000);
-          localStorage.setItem(`${key}:expiry`, expiryTime.toString());
-        }
-      } catch (error) {
-        console.error('Failed to store in localStorage:', error);
-      }
-      return;
-    }
+    if (!isBrowser) return; // Only use localStorage in browser
     
-    const redis = getRedisClient();
-    if (redis) {
-      try {
-        if (ttl) {
-          await redis.set(key, JSON.stringify(value), 'EX', ttl);
-        } else {
-          await redis.set(key, JSON.stringify(value));
-        }
-      } catch (error) {
-        console.error('Failed to store in Redis:', error);
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+      
+      // Implement TTL for localStorage
+      if (ttl) {
+        const expiryTime = Date.now() + (ttl * 1000);
+        localStorage.setItem(`${key}:expiry`, expiryTime.toString());
       }
+    } catch (error) {
+      console.error('Failed to store in localStorage:', error);
     }
   },
 
   async get(key: string): Promise<any> {
-    if (isBrowser) {
-      try {
-        // Check TTL for localStorage
-        const expiryTime = localStorage.getItem(`${key}:expiry`);
-        if (expiryTime) {
-          if (Date.now() > parseInt(expiryTime)) {
-            localStorage.removeItem(key);
-            localStorage.removeItem(`${key}:expiry`);
-            return null;
-          }
+    if (!isBrowser) return null; // Only use localStorage in browser
+    
+    try {
+      // Check TTL for localStorage
+      const expiryTime = localStorage.getItem(`${key}:expiry`);
+      if (expiryTime) {
+        if (Date.now() > parseInt(expiryTime)) {
+          localStorage.removeItem(key);
+          localStorage.removeItem(`${key}:expiry`);
+          return null;
         }
-        
-        const data = localStorage.getItem(key);
-        return data ? JSON.parse(data) : null;
-      } catch (error) {
-        console.error('Failed to read from localStorage:', error);
-        return null;
       }
+      
+      const data = localStorage.getItem(key);
+      return data ? JSON.parse(data) : null;
+    } catch (error) {
+      console.error('Failed to read from localStorage:', error);
+      return null;
     }
-    
-    const redis = getRedisClient();
-    if (redis) {
-      try {
-        const data = await redis.get(key);
-        return data ? JSON.parse(data) : null;
-      } catch (error) {
-        console.error('Failed to read from Redis:', error);
-        return null;
-      }
-    }
-    
-    return null;
   },
 
   async cleanup() {
-    if (isBrowser) {
-      // Cleanup expired localStorage items
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && key.endsWith(':expiry')) {
-          const expiryTime = parseInt(localStorage.getItem(key) || '0');
-          if (Date.now() > expiryTime) {
-            const actualKey = key.replace(':expiry', '');
-            localStorage.removeItem(actualKey);
-            localStorage.removeItem(key);
-          }
+    if (!isBrowser) return; // Only cleanup localStorage in browser
+    
+    // Cleanup expired localStorage items
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.endsWith(':expiry')) {
+        const expiryTime = parseInt(localStorage.getItem(key) || '0');
+        if (Date.now() > expiryTime) {
+          const actualKey = key.replace(':expiry', '');
+          localStorage.removeItem(actualKey);
+          localStorage.removeItem(key);
         }
       }
     }
@@ -123,17 +82,10 @@ export async function storeTimeBlock(timeSlot: TimeSlot, stories: NewsItem[]): P
 }
 
 export async function getTimeBlock(timeSlot: TimeSlot): Promise<TimeBlock | null> {
-  const key = getStorageKey(timeSlot);
-  const data = await storage.get(key);
-  
-  if (data) {
-    return data;
-  }
-
   if (isBrowser && isTimeSlotAvailable(timeSlot)) {
-    // If in browser and time slot is available but no data found, return mock data
+    // In browser, always return mock data
     const mockStories = createMockStories(timeSlot);
-    const mockTimeBlock: TimeBlock = {
+    return {
       time: timeSlot,
       date: new Date().toLocaleDateString('en-US', { 
         day: 'numeric', 
@@ -142,12 +94,7 @@ export async function getTimeBlock(timeSlot: TimeSlot): Promise<TimeBlock | null
       }).replace(/\//g, ' '),
       stories: mockStories
     };
-
-    // Store mock data for future use
-    await storage.set(key, mockTimeBlock);
-    return mockTimeBlock;
   }
-
   return null;
 }
 
