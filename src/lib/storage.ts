@@ -89,7 +89,7 @@ function createMockStories(timeSlot: TimeSlot): NewsItem[] {
       headline: 'AI Breakthrough in Natural Language Processing',
       content: 'Scientists have developed a new AI model that demonstrates unprecedented language understanding capabilities.\n\nThe model shows remarkable ability to process and generate human-like text while requiring significantly less computational power.\n\nEarly tests indicate potential applications in education, healthcare, and scientific research.\n\nResearchers emphasize the importance of ethical considerations in deployment.',
       source: 'Tech Daily',
-      image: 'https://images.unsplash.com/photo-1677442136019-21780ecad995',
+      image: 'https://placehold.co/600x400?text=Tech+News',
       originalUrl: 'https://example.com/tech-news'
     },
     {
@@ -99,7 +99,7 @@ function createMockStories(timeSlot: TimeSlot): NewsItem[] {
       headline: 'Global Markets Show Strong Recovery',
       content: 'Stock markets worldwide have shown remarkable resilience with a strong recovery in major indices.\n\nInvestors are showing renewed confidence in technology and renewable energy sectors.\n\nAnalysts point to improving economic indicators and positive corporate earnings.\n\nExperts suggest maintaining a diversified portfolio approach.',
       source: 'Financial Times',
-      image: 'https://images.unsplash.com/photo-1642543492481-44e81e3ab2f4',
+      image: 'https://placehold.co/600x400?text=Finance+News',
       originalUrl: 'https://example.com/finance-news'
     }
   ];

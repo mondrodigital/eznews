@@ -18,7 +18,6 @@ Required environment variables for deployment:
 # API Keys
 VITE_NEWS_API_KEY=your_newsapi_key
 VITE_OPENAI_API_KEY=your_openai_key
-VITE_UNSPLASH_ACCESS_KEY=your_unsplash_key
 VITE_CRON_SECRET=your_cron_secret
 
 # Vercel KV (if using)
@@ -62,5 +61,4 @@ npm run test-update
 - Tailwind CSS
 - OpenAI GPT-4
 - NewsAPI
-- Unsplash API
 - Vercel KV (optional) 

@@ -5,21 +5,21 @@ const createMockStories = (timeSlot: TimeSlot): NewsItem[] => [
     id: '1',
     timestamp: new Date(),
     category: 'tech',
-    headline: 'Revolutionary AI Model Achieves Human-Level Understanding',
-    content: 'Scientists at a leading research institute have developed a new AI model that demonstrates unprecedented levels of language comprehension and reasoning.\n\nThe breakthrough comes from a novel architecture that combines multiple types of neural networks in a way that mimics human cognitive processes.\n\nEarly tests show the AI performing at or above human level on a wide range of tasks, from complex problem-solving to nuanced language understanding.\n\nThe implications for fields like healthcare, scientific research, and education are significant, though researchers emphasize the importance of ethical deployment.',
-    source: 'MIT Technology Review',
-    image: 'https://images.unsplash.com/photo-1677442136019-21780ecad995',
-    originalUrl: 'https://www.technologyreview.com/artificial-intelligence'
+    headline: 'AI Breakthrough in Natural Language Processing',
+    content: 'Scientists have developed a new AI model that demonstrates unprecedented language understanding capabilities.\n\nThe model shows remarkable ability to process and generate human-like text while requiring significantly less computational power.\n\nEarly tests indicate potential applications in education, healthcare, and scientific research.\n\nResearchers emphasize the importance of ethical considerations in deployment.',
+    source: 'Tech Daily',
+    image: 'https://placehold.co/600x400?text=Tech+News',
+    originalUrl: 'https://example.com/tech-news'
   },
   {
     id: '2',
     timestamp: new Date(),
     category: 'finance',
-    headline: 'Global Markets Rally on Breakthrough Clean Energy Investment',
-    content: 'Stock markets worldwide surged today as a consortium of major companies announced a $500 billion investment in clean energy technologies.\n\nThe initiative, backed by leading tech and energy companies, aims to accelerate the transition to sustainable energy sources through innovative storage solutions and smart grid technology.\n\nAnalysts predict this could mark a turning point in the fight against climate change while creating millions of new jobs in the green energy sector.\n\nThe investment is expected to significantly reduce the cost of renewable energy technologies within the next five years.',
+    headline: 'Global Markets Show Strong Recovery',
+    content: 'Stock markets worldwide have shown remarkable resilience with a strong recovery in major indices.\n\nInvestors are showing renewed confidence in technology and renewable energy sectors.\n\nAnalysts point to improving economic indicators and positive corporate earnings.\n\nExperts suggest maintaining a diversified portfolio approach.',
     source: 'Financial Times',
-    image: 'https://images.unsplash.com/photo-1642543492481-44e81e3ab2f4',
-    originalUrl: 'https://www.ft.com/energy'
+    image: 'https://placehold.co/600x400?text=Finance+News',
+    originalUrl: 'https://example.com/finance-news'
   },
   {
     id: '3',

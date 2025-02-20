@@ -15,13 +15,12 @@ export const clientEnv = {
   REDIS_URL: getEnvVar('REDIS_URL'),
   NEWS_API_KEY: getEnvVar('NEWS_API_KEY'),
   OPENAI_API_KEY: getEnvVar('OPENAI_API_KEY'),
-  UNSPLASH_ACCESS_KEY: getEnvVar('UNSPLASH_ACCESS_KEY'),
   CRON_SECRET: getEnvVar('CRON_SECRET')
 } as const;
 
 // Validate required environment variables
 export function validateEnv() {
-  const required = ['REDIS_URL', 'NEWS_API_KEY', 'OPENAI_API_KEY', 'UNSPLASH_ACCESS_KEY', 'CRON_SECRET'];
+  const required = ['REDIS_URL', 'NEWS_API_KEY', 'OPENAI_API_KEY', 'CRON_SECRET'];
   const missing = required.filter(key => !clientEnv[key as keyof typeof clientEnv]);
   
   if (missing.length > 0) {

@@ -22,8 +22,8 @@ async function processCategory(category: NewsCategory): Promise<NewsItem> {
   console.log('Rewriting article...');
   const { headline, content } = await rewriteArticle(article, category);
   
-  // Use the article's image directly
-  const image = article.urlToImage || 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?q=80';
+  // Use the article's image or a default placeholder
+  const image = article.urlToImage || 'https://placehold.co/600x400?text=News';
   
   console.log('Processed article:', headline);
   

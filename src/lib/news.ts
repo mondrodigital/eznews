@@ -40,25 +40,4 @@ export async function fetchNewsForCategory(category: NewsCategory): Promise<News
   }
 
   return data.articles;
-}
-
-// This will be used to get a relevant image from Unsplash if the article doesn't have one
-export async function getUnsplashImage(query: string): Promise<string> {
-  if (!clientEnv.UNSPLASH_ACCESS_KEY) {
-    throw new Error('UNSPLASH_ACCESS_KEY is not set');
-  }
-
-  const apiUrl = new URL('https://api.unsplash.com/search/photos');
-  apiUrl.searchParams.append('client_id', clientEnv.UNSPLASH_ACCESS_KEY);
-  apiUrl.searchParams.append('query', query);
-  apiUrl.searchParams.append('per_page', '1');
-
-  const response = await fetch(apiUrl.toString());
-  const data = await response.json();
-
-  if (!data.results?.[0]?.urls?.regular) {
-    throw new Error('No image found on Unsplash');
-  }
-
-  return data.results[0].urls.regular;
 } 
