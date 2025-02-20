@@ -30,7 +30,15 @@
   "crons": [
     {
       "path": "/api/cron/update",
-      "schedule": "0 9 * * *"
+      "schedule": "55 9 * * *"
+    },
+    {
+      "path": "/api/cron/update",
+      "schedule": "55 14 * * *"
+    },
+    {
+      "path": "/api/cron/update",
+      "schedule": "55 19 * * *"
     }
   ]
 } 
