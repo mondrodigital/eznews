@@ -1,6 +1,6 @@
-import { processTimeSlot } from '../src/lib/process';
-import { TimeSlot } from '../src/lib/types';
-import { serverEnv } from '../src/lib/server-env';
+import { processTimeSlot } from './lib/process';
+import { TimeSlot } from './lib/types';
+import { serverEnv } from './lib/server-env';
 
 export async function handleCronUpdate(req: Request) {
   try {
