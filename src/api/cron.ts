@@ -4,7 +4,13 @@ import { env } from '../lib/env';
 
 export async function handleCronUpdate(req: Request) {
   try {
-    // Debug environment variables
+    // Debug environment variables and request info
+    console.log('Request info:', {
+      method: req.method,
+      url: req.url,
+      headers: Object.fromEntries(req.headers.entries())
+    });
+
     console.log('Environment check:', {
       REDIS_URL: env.REDIS_URL ? 'Set' : 'Not set',
       NEWS_API_KEY: env.NEWS_API_KEY ? 'Set' : 'Not set',
@@ -25,19 +31,34 @@ export async function handleCronUpdate(req: Request) {
     const missingVars = requiredVars.filter(varName => !env[varName as keyof typeof env]);
     
     if (missingVars.length > 0) {
-      throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
+      const error = new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
+      console.error('Environment validation failed:', error);
+      throw error;
     }
 
     // Verify the request is authorized
     const authHeader = req.headers.get('authorization');
     const isManualTrigger = req.method === 'POST';
     
+    console.log('Auth check:', {
+      isManualTrigger,
+      hasAuthHeader: !!authHeader,
+      authHeader: authHeader ? 'Present' : 'Missing'
+    });
+
     // For manual triggers, check the secret in the body
     if (isManualTrigger) {
       const body = await req.json();
+      console.log('Manual trigger body:', {
+        hasSecret: !!body.secret,
+        secretMatch: body.secret === env.CRON_SECRET
+      });
+
       if (body.secret !== env.CRON_SECRET) {
+        const error = new Error('Unauthorized - Invalid secret');
+        console.error('Auth failed:', error);
         return new Response(
-          JSON.stringify({ error: 'Unauthorized - Invalid secret' }),
+          JSON.stringify({ error: error.message }),
           { 
             status: 401,
             headers: { 'Content-Type': 'application/json' }
@@ -47,8 +68,10 @@ export async function handleCronUpdate(req: Request) {
     } else {
       // For automated cron, check the bearer token
       if (authHeader !== `Bearer ${env.CRON_SECRET}`) {
+        const error = new Error('Unauthorized - Invalid token');
+        console.error('Auth failed:', error);
         return new Response(
-          JSON.stringify({ error: 'Unauthorized - Invalid token' }),
+          JSON.stringify({ error: error.message }),
           { 
             status: 401,
             headers: { 'Content-Type': 'application/json' }
@@ -77,7 +100,8 @@ export async function handleCronUpdate(req: Request) {
           return { 
             timeSlot, 
             success: false, 
-            error: error instanceof Error ? error.message : 'Unknown error' 
+            error: error instanceof Error ? error.message : 'Unknown error',
+            stack: error instanceof Error ? error.stack : undefined
           };
         }
       })
@@ -98,10 +122,14 @@ export async function handleCronUpdate(req: Request) {
     );
   } catch (error) {
     console.error('Update failed:', error);
+    if (error instanceof Error) {
+      console.error('Error stack:', error.stack);
+    }
     return new Response(
       JSON.stringify({ 
         error: 'Failed to process updates',
-        details: error instanceof Error ? error.message : String(error)
+        details: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
       }),
       { 
         status: 500,
