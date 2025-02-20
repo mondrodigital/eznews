@@ -3,20 +3,39 @@ import { TimeSlot } from '../lib/types';
 
 export async function handleCronUpdate(req: Request) {
   try {
-    // Verify the request is from Vercel Cron
+    // Verify the request is authorized
     const authHeader = req.headers.get('authorization');
-    if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { 
-          status: 401,
-          headers: { 'Content-Type': 'application/json' }
-        }
-      );
+    const isManualTrigger = req.method === 'POST';
+    
+    // For manual triggers, check the secret in the body
+    if (isManualTrigger) {
+      const body = await req.json();
+      if (body.secret !== process.env.CRON_SECRET) {
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized - Invalid secret' }),
+          { 
+            status: 401,
+            headers: { 'Content-Type': 'application/json' }
+          }
+        );
+      }
+    } else {
+      // For automated cron, check the bearer token
+      if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized - Invalid token' }),
+          { 
+            status: 401,
+            headers: { 'Content-Type': 'application/json' }
+          }
+        );
+      }
     }
 
     // Process all time slots for the day
     const timeSlots: TimeSlot[] = ['10AM', '3PM', '8PM'];
+    console.log(`Starting ${isManualTrigger ? 'manual' : 'automated'} update for all time slots...`);
+    
     const results = await Promise.all(
       timeSlots.map(async (timeSlot) => {
         try {
@@ -44,7 +63,7 @@ export async function handleCronUpdate(req: Request) {
     return new Response(
       JSON.stringify({ 
         success: allSuccessful,
-        message: 'Completed daily news processing',
+        message: `Completed ${isManualTrigger ? 'manual' : 'automated'} news processing`,
         results 
       }),
       { 
@@ -53,10 +72,10 @@ export async function handleCronUpdate(req: Request) {
       }
     );
   } catch (error) {
-    console.error('Automated update failed:', error);
+    console.error('Update failed:', error);
     return new Response(
       JSON.stringify({ 
-        error: 'Failed to process daily updates',
+        error: 'Failed to process updates',
         details: error instanceof Error ? error.message : String(error)
       }),
       { 

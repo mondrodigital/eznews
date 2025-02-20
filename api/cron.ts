@@ -10,26 +10,34 @@ export default async function handler(
     return;
   }
 
-  // For testing, allow POST requests with the correct secret
-  if (request.method === 'POST') {
-    const { secret } = request.body;
-    if (secret !== process.env.CRON_SECRET) {
-      response.status(401).json({ error: 'Unauthorized' });
+  try {
+    // For POST requests, forward the entire request
+    if (request.method === 'POST') {
+      const result = await handleCronUpdate(new Request(request.url || '', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(request.body)
+      }));
+      
+      const { status, headers, body } = await parseResponse(result);
+      
+      Object.entries(headers).forEach(([key, value]) => {
+        response.setHeader(key, value);
+      });
+      
+      response.status(status).send(body);
       return;
     }
-  }
 
-  try {
-    // Add authorization header for cron requests
+    // For GET requests (automated cron), add authorization header
     const headers = new Headers();
     headers.set('authorization', `Bearer ${process.env.CRON_SECRET}`);
     
-    const mockRequest = new Request(request.url || '', {
+    const result = await handleCronUpdate(new Request(request.url || '', {
       method: 'GET',
       headers
-    });
+    }));
 
-    const result = await handleCronUpdate(mockRequest);
     const { status, headers: responseHeaders, body } = await parseResponse(result);
     
     Object.entries(responseHeaders).forEach(([key, value]) => {
