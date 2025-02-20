@@ -1,5 +1,6 @@
 import { handleCronUpdate } from '../src/api/cron';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { serverEnv } from '../src/lib/server-env';
 
 export default async function handler(
   request: VercelRequest,
@@ -31,7 +32,7 @@ export default async function handler(
 
     // For GET requests (automated cron), add authorization header
     const headers = new Headers();
-    headers.set('authorization', `Bearer ${process.env.CRON_SECRET}`);
+    headers.set('authorization', `Bearer ${serverEnv.CRON_SECRET}`);
     
     const result = await handleCronUpdate(new Request(request.url || '', {
       method: 'GET',

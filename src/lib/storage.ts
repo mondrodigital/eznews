@@ -4,11 +4,41 @@ import { env } from './env';
 
 const TTL = 24 * 60 * 60; // 24 hours in seconds
 
-// Initialize Redis client
+// Helper to determine if we're in a browser environment
+const isBrowser = typeof window !== 'undefined';
+
+// Storage key helper
+function getStorageKey(timeSlot: TimeSlot): string {
+  return `news:${timeSlot}`;
+}
+
+// Browser storage implementation
+const browserStorage = {
+  async set(key: string, value: any, ttl?: number) {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch (error) {
+      console.error('Failed to store in localStorage:', error);
+      throw error;
+    }
+  },
+
+  async get(key: string) {
+    try {
+      const value = localStorage.getItem(key);
+      return value ? JSON.parse(value) : null;
+    } catch (error) {
+      console.error('Failed to read from localStorage:', error);
+      return null;
+    }
+  }
+};
+
+// Redis storage implementation
 let redisClient: Redis | null = null;
 
 function getRedisClient() {
-  if (!redisClient) {
+  if (!redisClient && !isBrowser) {
     if (!env.REDIS_URL) {
       throw new Error('Redis URL not found in environment variables');
     }
@@ -17,9 +47,39 @@ function getRedisClient() {
   return redisClient;
 }
 
-function getMockStorageKey(timeSlot: TimeSlot): string {
-  return `news:${timeSlot}`;
-}
+const redisStorage = {
+  async set(key: string, value: any, ttl?: number) {
+    const redis = getRedisClient();
+    if (!redis) return browserStorage.set(key, value);
+    
+    try {
+      if (ttl) {
+        await redis.set(key, JSON.stringify(value), 'EX', ttl);
+      } else {
+        await redis.set(key, JSON.stringify(value));
+      }
+    } catch (error) {
+      console.error('Failed to store in Redis:', error);
+      throw error;
+    }
+  },
+
+  async get(key: string) {
+    const redis = getRedisClient();
+    if (!redis) return browserStorage.get(key);
+    
+    try {
+      const data = await redis.get(key);
+      return data ? JSON.parse(data) : null;
+    } catch (error) {
+      console.error('Failed to read from Redis:', error);
+      return null;
+    }
+  }
+};
+
+// Use browser storage in browser environment, Redis storage on server
+const storage = isBrowser ? browserStorage : redisStorage;
 
 export async function storeTimeBlock(timeSlot: TimeSlot, stories: NewsItem[]): Promise<void> {
   const date = new Date().toLocaleDateString('en-US', { 
@@ -34,33 +94,21 @@ export async function storeTimeBlock(timeSlot: TimeSlot, stories: NewsItem[]): P
     stories
   };
 
-  try {
-    const redis = getRedisClient();
-    const key = getMockStorageKey(timeSlot);
-    await redis.set(key, JSON.stringify(timeBlock), 'EX', TTL);
-    console.log(`Successfully stored data for ${timeSlot}`);
-  } catch (error) {
-    console.error('Failed to store in Redis:', error);
-    throw error;
-  }
+  const key = getStorageKey(timeSlot);
+  await storage.set(key, timeBlock, TTL);
+  console.log(`Successfully stored data for ${timeSlot}`);
 }
 
 export async function getTimeBlock(timeSlot: TimeSlot): Promise<TimeBlock | null> {
-  try {
-    const redis = getRedisClient();
-    const key = getMockStorageKey(timeSlot);
-    const data = await redis.get(key);
-    
-    if (!data) {
-      console.log(`No data found for ${timeSlot}`);
-      return null;
-    }
-
-    return JSON.parse(data);
-  } catch (error) {
-    console.error('Failed to read from Redis:', error);
+  const key = getStorageKey(timeSlot);
+  const data = await storage.get(key);
+  
+  if (!data) {
+    console.log(`No data found for ${timeSlot}`);
     return null;
   }
+
+  return data;
 }
 
 export async function getAllAvailableTimeBlocks(): Promise<TimeBlock[]> {
