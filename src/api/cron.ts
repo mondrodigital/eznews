@@ -17,7 +17,7 @@ export async function handleCronUpdate(req: Request) {
     // Verify the request is authorized
     const authHeader = req.headers.get('authorization');
     const isManualTrigger = req.method === 'POST';
-    const cronSecret = getEnvVar('CRON_SECRET');
+    const cronSecret = process.env.CRON_SECRET;
     
     // For manual triggers, check the secret in the body
     if (isManualTrigger) {
