@@ -81,15 +81,33 @@ export async function getAllAvailableTimeBlocks(): Promise<TimeBlock[]> {
 export function isTimeSlotAvailable(timeSlot: TimeSlot): boolean {
   const now = new Date();
   const hour = now.getHours();
-  
-  switch (timeSlot) {
-    case '10AM':
-      return hour >= 10;
-    case '3PM':
-      return hour >= 15;
-    case '8PM':
-      return hour >= 20;
-    default:
-      return false;
+  const currentDate = now.toLocaleDateString('en-US', { 
+    day: 'numeric', 
+    month: 'numeric', 
+    year: '2-digit'
+  }).replace(/\//g, ' ');
+
+  // First check if we have data for today
+  try {
+    const data = localStorage.getItem(getMockStorageKey(timeSlot));
+    if (!data) return false;
+    
+    const { date } = JSON.parse(data);
+    if (date !== currentDate) return false;
+    
+    // Then check if it's time to show this slot
+    switch (timeSlot) {
+      case '10AM':
+        return hour >= 10;
+      case '3PM':
+        return hour >= 15;
+      case '8PM':
+        return hour >= 20;
+      default:
+        return false;
+    }
+  } catch (error) {
+    console.error('Error checking time slot availability:', error);
+    return false;
   }
 } 
