@@ -28,7 +28,10 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: path.resolve(__dirname, 'index.html')
-      }
+      },
+      external: [
+        /^api\//  // Exclude all files in the api directory
+      ]
     }
   }
 });
