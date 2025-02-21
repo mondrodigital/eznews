@@ -1,17 +1,25 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
+import { createClient } from '@supabase/supabase-js';
 import cors from 'cors';
 import OpenAI from 'openai';
 
 const NEWS_API_KEY = process.env.NEWS_API_KEY;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY;
 
-// In-memory cache
-const cache = new Map();
-const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+const CACHE_TTL = 24 * 60 * 60; // 24 hours in seconds
+
+if (!SUPABASE_URL || !SUPABASE_KEY) {
+  console.error('Missing Supabase configuration');
+}
+
+const supabase = createClient(SUPABASE_URL || '', SUPABASE_KEY || '');
 
 console.log('Server environment check:', {
   hasNewsApiKey: !!NEWS_API_KEY,
-  hasOpenAiKey: !!OPENAI_API_KEY
+  hasOpenAiKey: !!OPENAI_API_KEY,
+  hasSupabaseConfig: !!SUPABASE_URL && !!SUPABASE_KEY
 });
 
 const openai = new OpenAI({
@@ -36,6 +44,9 @@ interface NewsAPIArticle {
 
 type Category = typeof CATEGORIES[number];
 
+// Add memory cache as fallback
+const memoryCache = new Map<string, { data: any; timestamp: number }>();
+
 async function fetchAndProcessNews(timeSlot: string) {
   if (!NEWS_API_KEY) {
     throw new Error('NEWS_API_KEY is not configured');
@@ -57,11 +68,11 @@ async function fetchAndProcessNews(timeSlot: string) {
     if (data.status === 'error') {
       console.error('News API Error:', data.message);
       if (data.message?.includes('too many requests')) {
-        // Return cached data if available, even if expired
+        // Return cached data if available
         const cacheKey = getCacheKey(timeSlot as string);
-        const cachedData = cache.get(cacheKey)?.data;
+        const cachedData = await getCachedData(cacheKey);
         if (cachedData) {
-          console.log('Rate limited - returning cached data regardless of TTL');
+          console.log('Rate limited - returning cached data');
           return cachedData;
         }
       }
@@ -187,20 +198,90 @@ function getCacheKey(timeSlot: string): string {
   return `news:${date}:${timeSlot}`;
 }
 
-function getCachedData(key: string) {
-  const entry = cache.get(key);
+async function getCachedData(key: string) {
+  try {
+    // Try Supabase first
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('news_cache')
+        .select('data, created_at')
+        .eq('key', key)
+        .single();
+
+      if (error) {
+        console.error('Error reading from Supabase:', error);
+        // Fall back to memory cache
+        return getMemoryCachedData(key);
+      }
+
+      if (!data) return null;
+
+      // Check if cache is expired (24 hours)
+      const created = new Date(data.created_at);
+      const now = new Date();
+      if ((now.getTime() - created.getTime()) > (CACHE_TTL * 1000)) {
+        // Delete expired cache
+        await supabase.from('news_cache').delete().eq('key', key);
+        return null;
+      }
+
+      return data.data;
+    }
+
+    // If no Supabase, use memory cache
+    return getMemoryCachedData(key);
+  } catch (error) {
+    console.error('Error reading from Supabase:', error);
+    // Fall back to memory cache
+    return getMemoryCachedData(key);
+  }
+}
+
+function getMemoryCachedData(key: string) {
+  const entry = memoryCache.get(key);
   if (!entry) return null;
-  
-  if (Date.now() - entry.timestamp > CACHE_TTL) {
-    cache.delete(key);
+
+  // Check if cache is expired
+  if (Date.now() - entry.timestamp > CACHE_TTL * 1000) {
+    memoryCache.delete(key);
     return null;
   }
-  
+
   return entry.data;
 }
 
-function setCachedData(key: string, data: any) {
-  cache.set(key, {
+async function setCachedData(key: string, data: any) {
+  try {
+    // Try to cache in Supabase
+    if (supabase) {
+      // Delete any existing cache for this key
+      await supabase.from('news_cache').delete().eq('key', key);
+
+      // Insert new cache data
+      const { error } = await supabase.from('news_cache').insert({
+        key,
+        data,
+        created_at: new Date().toISOString()
+      });
+
+      if (error) {
+        console.error('Error writing to Supabase:', error);
+        // Fall back to memory cache
+        setMemoryCachedData(key, data);
+      }
+    } else {
+      // If no Supabase, use memory cache
+      setMemoryCachedData(key, data);
+    }
+  } catch (error) {
+    console.error('Error writing to Supabase:', error);
+    // Fall back to memory cache
+    setMemoryCachedData(key, data);
+  }
+}
+
+function setMemoryCachedData(key: string, data: any) {
+  memoryCache.set(key, {
     data,
     timestamp: Date.now()
   });
@@ -233,7 +314,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Try to get cached data
     const cacheKey = getCacheKey(timeSlot as string);
-    let timeBlock = getCachedData(cacheKey);
+    let timeBlock = await getCachedData(cacheKey);
 
     if (!timeBlock) {
       console.log('No cached data found, fetching fresh news');
@@ -251,7 +332,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       };
       
       // Cache the data
-      setCachedData(cacheKey, timeBlock);
+      await setCachedData(cacheKey, timeBlock);
     } else {
       console.log('Returning cached data');
     }
