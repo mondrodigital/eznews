@@ -301,7 +301,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // Only allow GET requests
   if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    return res.status(405).json({ 
+      error: 'Method not allowed',
+      status: 'error',
+      stories: [] 
+    });
   }
 
   try {
@@ -309,7 +313,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { timeSlot } = req.query;
     if (!timeSlot) {
       console.log('No time slot provided');
-      return res.status(400).json({ error: 'Time slot is required' });
+      return res.status(400).json({ 
+        error: 'Time slot is required',
+        status: 'error',
+        stories: [] 
+      });
     }
 
     // Try to get cached data
@@ -328,13 +336,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           month: 'numeric', 
           year: '2-digit'
         }).replace(/\//g, ' '),
-        stories
+        stories,
+        status: 'success'
       };
       
       // Cache the data
       await setCachedData(cacheKey, timeBlock);
     } else {
       console.log('Returning cached data');
+      // Ensure cached data has status field
+      timeBlock.status = 'success';
     }
 
     return res.json(timeBlock);
@@ -342,7 +353,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.error('API Error:', error);
     return res.status(500).json({ 
       error: 'Failed to fetch news',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      details: error instanceof Error ? error.message : 'Unknown error',
+      status: 'error',
+      stories: [],
+      time: req.query.timeSlot,
+      date: new Date().toLocaleDateString('en-US', { 
+        day: 'numeric', 
+        month: 'numeric', 
+        year: '2-digit'
+      }).replace(/\//g, ' ')
     });
   }
 } 

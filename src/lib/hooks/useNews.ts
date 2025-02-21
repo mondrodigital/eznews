@@ -24,17 +24,30 @@ export function useNews(timeSlot: TimeSlot) {
         
         if (!mounted) return;
 
-        if (data.error) {
+        if (data.status === 'error') {
           console.error('API returned error:', data.error, data.details);
-          setError(data.error);
-          setTimeBlock(null);
+          setError(data.error || 'Failed to load news');
+          // Still set the timeBlock with empty stories to maintain UI structure
+          setTimeBlock({
+            time: timeSlot,
+            date: data.date || new Date().toLocaleDateString('en-US', { 
+              day: 'numeric', 
+              month: 'numeric', 
+              year: '2-digit'
+            }).replace(/\//g, ' '),
+            stories: []
+          });
           return;
         }
 
         if (!data.stories?.length) {
           console.log('No stories in response');
           setError('No news available at this time');
-          setTimeBlock(null);
+          setTimeBlock({
+            time: timeSlot,
+            date: data.date,
+            stories: []
+          });
         } else {
           console.log(`Received ${data.stories.length} stories`);
           setTimeBlock(data);
@@ -43,8 +56,18 @@ export function useNews(timeSlot: TimeSlot) {
       } catch (err) {
         console.error('useNews: Error fetching news:', err);
         if (mounted) {
-          setError(err instanceof Error ? err.message : 'Failed to load news');
-          setTimeBlock(null);
+          const errorMessage = err instanceof Error ? err.message : 'Failed to load news';
+          setError(errorMessage);
+          // Set empty timeBlock to maintain UI structure
+          setTimeBlock({
+            time: timeSlot,
+            date: new Date().toLocaleDateString('en-US', { 
+              day: 'numeric', 
+              month: 'numeric', 
+              year: '2-digit'
+            }).replace(/\//g, ' '),
+            stories: []
+          });
         }
       } finally {
         if (mounted) {
