@@ -137,7 +137,7 @@ function App() {
           </div>
         </div>
 
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           {/* Categories Bar */}
           <div className="sticky top-0 lg:top-0 w-full bg-white border-b border-black/5 z-40">
             <div className="flex items-center space-x-1 px-4 py-3 overflow-x-auto hide-scrollbar">
@@ -159,7 +159,7 @@ function App() {
           </div>
 
           {/* Main Content */}
-          <div className="px-4 lg:px-12">
+          <div className="px-4 lg:px-12 w-full max-w-full">
             <div className="w-full max-w-[400px] mx-auto">
               {loading ? (
                 <div className="flex items-center justify-center py-20">
@@ -178,9 +178,11 @@ function App() {
                         onClick={() => setExpandedStory(expandedStory === story.id ? null : story.id)}
                         className="block text-left w-full group relative py-4"
                       >
-                        <div className="flex items-start justify-between pr-2">
-                          <h2 className="text-base font-medium pr-12 group-hover:text-gray-600 transition-colors duration-200">
-                            {story.headline.replace(` - ${story.source}`, '').replace(/\s*-\s*$/, '')}
+                        <div className="flex items-start justify-between gap-2">
+                          <h2 className="text-base font-medium flex-1 min-w-0">
+                            <span className="line-clamp-3">
+                              {story.headline.replace(` - ${story.source}`, '').replace(/\s*-\s*$/, '')}
+                            </span>
                           </h2>
                           <ChevronDown 
                             size={14} 
@@ -202,7 +204,7 @@ function App() {
                             />
                           </div>
 
-                          <div className="space-y-3 text-sm leading-relaxed">
+                          <div className="space-y-3 text-sm leading-relaxed break-words">
                             {story.content.split('\n\n').map((paragraph, index) => (
                               <p key={index} className="text-gray-800">{paragraph}</p>
                             ))}
@@ -214,7 +216,7 @@ function App() {
                               href={story.originalUrl} 
                               target="_blank" 
                               rel="noopener noreferrer"
-                              className="text-sm text-blue-600 hover:underline mt-1 block"
+                              className="text-sm text-blue-600 hover:underline mt-1 block break-all"
                             >
                               Read original article
                             </a>
