@@ -21,9 +21,12 @@ export function useNews(timeSlot: TimeSlot) {
         
         // Force fresh fetch with cache busting
         const timestamp = Date.now();
-        const baseUrl = import.meta.env.DEV ? 'http://localhost:3000' : '';
-        const response = await fetch(`${baseUrl}/api/news?timeSlot=${timeSlot}&force=true&_=${timestamp}`);
         
+        // Use relative URL in production, full URL in development
+        const apiUrl = `/api/news?timeSlot=${timeSlot}&force=true&_=${timestamp}`;
+        console.log('Fetching from:', apiUrl);
+        
+        const response = await fetch(apiUrl);
         console.log('API Response status:', response.status);
         
         const text = await response.text();

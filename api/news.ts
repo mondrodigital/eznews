@@ -521,17 +521,17 @@ if (missingEnvVars.length > 0) {
 
 // Update the handler to check environment variables first
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  try {
-    // Enable CORS
-    await new Promise((resolve, reject) => {
-      cors()(req, res, (result) => {
-        if (result instanceof Error) {
-          return reject(result);
-        }
-        return resolve(result);
-      });
-    });
+  // Set CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
+  // Handle OPTIONS request
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
+  try {
     console.log('Environment check:', {
       NODE_ENV: process.env.NODE_ENV,
       VERCEL_ENV: process.env.VERCEL_ENV,
@@ -615,7 +615,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       status: response.status
     });
     
-    return res.json(response);
+    // Set content type explicitly
+    res.setHeader('Content-Type', 'application/json');
+    return res.status(200).json(response);
   } catch (error) {
     console.error('API Error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -625,8 +627,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       date: getTodayKey()
     });
     
-    // Ensure we send a properly formatted JSON response
-    res.status(500).json({ 
+    // Set content type explicitly and ensure proper error response
+    res.setHeader('Content-Type', 'application/json');
+    return res.status(500).json({ 
       error: 'Failed to fetch news',
       details: errorMessage,
       status: 'error',
