@@ -103,6 +103,17 @@ function distributeArticlesToTimeSlots(articles: NewsAPIArticle[]): Map<TimeSlot
   return distribution;
 }
 
+// Update the cache key function to be more reliable
+function getCacheKey(timeSlot?: string): string {
+  const date = new Date().toLocaleDateString('en-US', { 
+    day: 'numeric', 
+    month: 'numeric', 
+    year: '2-digit'
+  }).replace(/\//g, '-');
+  
+  return timeSlot ? `news:${date}:${timeSlot}` : `news:${date}`;
+}
+
 async function fetchAndProcessDailyNews() {
   if (!NEWS_API_KEY) {
     throw new Error('NEWS_API_KEY is not configured');
@@ -121,7 +132,11 @@ async function fetchAndProcessDailyNews() {
     }
 
     if (!data.articles?.length) {
-      return new Map();
+      return {
+        '10AM': [],
+        '3PM': [],
+        '8PM': []
+      };
     }
 
     // Group articles by category first
@@ -135,7 +150,7 @@ async function fetchAndProcessDailyNews() {
       }
     });
 
-    // Process each category's articles and distribute them across time slots
+    // Process each category's articles
     const processedArticles = await Promise.all(
       Array.from(articlesByCategory.entries()).map(async ([category, articles]) => {
         const processed = await Promise.all(
@@ -191,20 +206,29 @@ async function fetchAndProcessDailyNews() {
     const timeSlots: TimeSlot[] = ['10AM', '3PM', '8PM'];
     const articlesPerSlot = Math.ceil(allProcessedArticles.length / timeSlots.length);
     
-    const distributedArticles = new Map<TimeSlot, any[]>();
+    const distribution: Record<TimeSlot, any[]> = {
+      '10AM': [],
+      '3PM': [],
+      '8PM': []
+    };
+
     timeSlots.forEach((slot, index) => {
       const start = index * articlesPerSlot;
       const slotArticles = allProcessedArticles.slice(start, start + articlesPerSlot);
-      distributedArticles.set(slot, slotArticles.map(article => ({
+      distribution[slot] = slotArticles.map(article => ({
         ...article,
         timeSlot: slot
-      })));
+      }));
     });
 
-    return distributedArticles;
+    return distribution;
   } catch (error) {
     console.error('Error fetching daily news:', error);
-    throw error;
+    return {
+      '10AM': [],
+      '3PM': [],
+      '8PM': []
+    };
   }
 }
 
@@ -231,15 +255,6 @@ function determineCategory(article: NewsAPIArticle): Category | null {
   }
 
   return null;
-}
-
-function getCacheKey(timeSlot: string): string {
-  const date = new Date().toLocaleDateString('en-US', { 
-    day: 'numeric', 
-    month: 'numeric', 
-    year: '2-digit'
-  }).replace(/\//g, '-');
-  return `news:${date}:${timeSlot}`;
 }
 
 async function getCachedData(key: string) {
@@ -331,7 +346,7 @@ function setMemoryCachedData(key: string, data: any) {
   });
 }
 
-// Update the handler to use the new daily news system
+// Update the handler to be more resilient
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Enable CORS
   await new Promise((resolve, reject) => {
@@ -362,31 +377,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    const todayKey = getTodayKey();
-    const cacheKey = `news:${todayKey}`;
+    const cacheKey = getCacheKey();
     
     // Try to get today's news from cache
     let dailyNews = await getCachedData(cacheKey);
 
-    if (!dailyNews) {
+    if (!dailyNews || !dailyNews.articles) {
       console.log('No cached news found for today, fetching fresh news');
       // Fetch and process all news for today
-      const distributedArticles = await fetchAndProcessDailyNews();
+      const articles = await fetchAndProcessDailyNews();
       
       dailyNews = {
-        date: todayKey,
-        articles: Object.fromEntries(distributedArticles)
+        date: getTodayKey(),
+        articles,
+        lastUpdated: new Date().toISOString()
       };
       
       // Cache the daily news
       await setCachedData(cacheKey, dailyNews);
     }
 
+    // Ensure articles object exists
+    const articles = dailyNews.articles || {
+      '10AM': [],
+      '3PM': [],
+      '8PM': []
+    };
+
     // Check if the requested time slot is available
     if (!isTimeSlotAvailable(timeSlot as TimeSlot)) {
       return res.json({
         time: timeSlot,
-        date: todayKey.replace(/-/g, ' '),
+        date: getTodayKey().replace(/-/g, ' '),
         stories: [],
         status: 'success',
         message: `News for ${timeSlot} is not available yet`
@@ -396,8 +418,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Return the news for the requested time slot
     return res.json({
       time: timeSlot,
-      date: todayKey.replace(/-/g, ' '),
-      stories: dailyNews.articles[timeSlot as TimeSlot] || [],
+      date: getTodayKey().replace(/-/g, ' '),
+      stories: articles[timeSlot as TimeSlot] || [],
       status: 'success'
     });
   } catch (error) {
