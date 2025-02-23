@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 import { NewsAPIArticle } from './news';
-import { NewsItem, NewsCategory, Category } from './types';
+import { NewsItem, Category } from './types';
 import { serverEnv } from './server-env';
 
 // Initialize OpenAI client lazily
@@ -108,7 +108,7 @@ export async function selectMostIntriguingArticle(articles: NewsAPIArticle[]): P
 
 export async function rewriteArticle(
   article: NewsAPIArticle,
-  category: NewsCategory
+  category: Category
 ): Promise<Pick<NewsItem, 'headline' | 'content'>> {
   const articleContext = `
 Title: ${article.title}

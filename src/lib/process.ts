@@ -1,20 +1,23 @@
 import { v4 as uuidv4 } from 'uuid';
-import { NewsItem, NewsCategory, TimeSlot, CATEGORIES, Category } from './types';
-import { fetchNewsForCategory, NewsAPIArticle } from './news';
+import { NewsItem, TimeSlot, Category } from './types';
+import { NewsAPIArticle, fetchNews } from './news';
 import { selectMostIntriguingArticle, rewriteArticle } from './gpt';
 import { storeTimeBlock } from './storage';
 
-async function processCategory(category: NewsCategory): Promise<NewsItem> {
+const CATEGORIES: Category[] = ['ai', 'robotics', 'biotech'];
+
+async function processCategory(category: Category): Promise<NewsItem> {
   console.log(`\nProcessing ${category} category...`);
   
   // Fetch articles for category
   console.log(`Fetching articles for ${category}...`);
-  const articles = await fetchNewsForCategory(category);
-  console.log(`Found ${articles.length} articles for ${category}`);
+  const articles = await fetchNews();
+  const categoryArticles = articles.filter((article: NewsAPIArticle) => determineCategory(article) === category);
+  console.log(`Found ${categoryArticles.length} articles for ${category}`);
   
   // Select the most intriguing article
   console.log('Selecting most intriguing article...');
-  const { article, reason } = await selectMostIntriguingArticle(articles);
+  const { article, reason } = await selectMostIntriguingArticle(categoryArticles);
   console.log('Selected article:', article.title);
   console.log('Selection reason:', reason);
   
@@ -23,7 +26,7 @@ async function processCategory(category: NewsCategory): Promise<NewsItem> {
   const { headline, content } = await rewriteArticle(article, category);
   
   // Use the article's image or a default placeholder
-  const image = article.urlToImage || 'https://placehold.co/600x400?text=News';
+  const image = article.urlToImage || `https://placehold.co/600x400?text=${category}+News`;
   
   console.log('Processed article:', headline);
   
