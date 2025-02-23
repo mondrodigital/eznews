@@ -1,8 +1,5 @@
 {
   "version": 2,
-  "buildCommand": "npm run build",
-  "devCommand": "npm run dev",
-  "framework": "vite",
   "builds": [
     {
       "src": "api/**/*.ts",
@@ -10,25 +7,13 @@
     },
     {
       "src": "package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "dist",
-        "zeroConfig": true
-      }
+      "use": "@vercel/static-build"
     }
   ],
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "/api/$1.ts",
-      "headers": {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization"
-      }
-    },
-    {
-      "handle": "filesystem"
+      "dest": "/api/$1.ts"
     },
     {
       "src": "/(.*)",
@@ -40,17 +25,5 @@
       "path": "/api/news?timeSlot=10AM&force=true",
       "schedule": "0 10 * * *"
     }
-  ],
-  "env": {
-    "VITE_NEWS_API_KEY": "@vite_news_api_key",
-    "VITE_OPENAI_API_KEY": "@vite_openai_api_key",
-    "VITE_UNSPLASH_ACCESS_KEY": "@vite_unsplash_access_key",
-    "VITE_CRON_SECRET": "@vite_cron_secret",
-    "NEWS_API_KEY": "@news_api_key",
-    "OPENAI_API_KEY": "@openai_api_key",
-    "UNSPLASH_ACCESS_KEY": "@unsplash_access_key",
-    "CRON_SECRET": "@cron_secret",
-    "SUPABASE_URL": "@supabase_url",
-    "SUPABASE_ANON_KEY": "@supabase_anon_key"
-  }
+  ]
 } 
