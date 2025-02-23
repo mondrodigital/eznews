@@ -356,7 +356,7 @@ function setMemoryCachedData(key: string, data: any) {
   });
 }
 
-// Update the handler with more logging
+// Update the handler to focus on filtering stored news
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   console.log('Environment:', {
     NODE_ENV: process.env.NODE_ENV,
@@ -387,8 +387,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { timeSlot } = req.query;
     console.log('Request:', {
       timeSlot,
-      currentHour: new Date().getHours(),
-      isAvailable: timeSlot ? isTimeSlotAvailable(timeSlot as TimeSlot) : false
+      currentHour: new Date().getHours()
     });
 
     if (!timeSlot || !['10AM', '3PM', '8PM'].includes(timeSlot as string)) {
@@ -414,6 +413,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       } : null
     });
 
+    // If no cached news, fetch and process new news
     if (!dailyNews || !dailyNews.articles) {
       console.log('Fetching fresh news');
       // Fetch and process all news for today
@@ -430,37 +430,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       console.log('Fresh news cached');
     }
 
-    // Ensure articles object exists
+    // Ensure articles object exists and get the requested time slot's articles
     const articles = dailyNews.articles || {
       '10AM': [],
       '3PM': [],
       '8PM': []
     };
 
-    // Check if the requested time slot is available
-    if (!isTimeSlotAvailable(timeSlot as TimeSlot)) {
-      console.log(`Time slot ${timeSlot} not available`);
-      return res.json({
-        time: timeSlot,
-        date: getTodayKey().replace(/-/g, ' '),
-        stories: [],
-        status: 'success',
-        message: `News for ${timeSlot} is not available yet`
-      });
-    }
-
-    // Return the news for the requested time slot
+    // Simply return the articles for the requested time slot
     const response = {
       time: timeSlot,
       date: getTodayKey().replace(/-/g, ' '),
       stories: articles[timeSlot as TimeSlot] || [],
       status: 'success'
     };
+    
     console.log('Response:', {
       time: response.time,
       date: response.date,
       storyCount: response.stories.length
     });
+    
     return res.json(response);
   } catch (error) {
     console.error('API Error:', error);

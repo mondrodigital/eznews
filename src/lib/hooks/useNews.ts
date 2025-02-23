@@ -5,7 +5,6 @@ export function useNews(timeSlot: TimeSlot) {
   const [timeBlock, setTimeBlock] = useState<TimeBlock | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -14,7 +13,6 @@ export function useNews(timeSlot: TimeSlot) {
       try {
         setLoading(true);
         setError(null);
-        setMessage(null);
         console.log('useNews: Fetching news for time slot:', timeSlot);
         
         const response = await fetch(`/api/news?timeSlot=${timeSlot}`);
@@ -36,11 +34,6 @@ export function useNews(timeSlot: TimeSlot) {
           return;
         }
 
-        // Handle the case where news is not available yet
-        if (data.message) {
-          setMessage(data.message);
-        }
-
         setTimeBlock({
           time: timeSlot,
           date: data.date,
@@ -48,7 +41,7 @@ export function useNews(timeSlot: TimeSlot) {
         });
 
         if (!data.stories?.length) {
-          setError(data.message || 'No news available at this time');
+          setError('No news available for this time slot');
         } else {
           setError(null);
         }
@@ -81,5 +74,5 @@ export function useNews(timeSlot: TimeSlot) {
     };
   }, [timeSlot]);
 
-  return { timeBlock, loading, error, message };
+  return { timeBlock, loading, error };
 } 
