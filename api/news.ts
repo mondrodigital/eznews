@@ -47,13 +47,46 @@ type Category = typeof CATEGORIES[number];
 // Add memory cache as fallback
 const memoryCache = new Map<string, { data: any; timestamp: number }>();
 
+// Add time slot type
+type TimeSlot = '10AM' | '3PM' | '8PM';
+
+// Add function to get the current time slot
+function getCurrentTimeSlot(): TimeSlot {
+  const hour = new Date().getHours();
+  if (hour >= 20) return '8PM';
+  if (hour >= 15) return '3PM';
+  return '10AM';
+}
+
+// Add function to check if a time slot is available
+function isTimeSlotAvailable(timeSlot: TimeSlot): boolean {
+  const hour = new Date().getHours();
+  
+  switch (timeSlot) {
+    case '10AM':
+      return hour >= 10;
+    case '3PM':
+      return hour >= 15;
+    case '8PM':
+      return hour >= 20;
+    default:
+      return false;
+  }
+}
+
 async function fetchAndProcessNews(timeSlot: string) {
   if (!NEWS_API_KEY) {
     throw new Error('NEWS_API_KEY is not configured');
   }
 
+  // Check if the requested time slot is available
+  if (!isTimeSlotAvailable(timeSlot as TimeSlot)) {
+    console.log(`Time slot ${timeSlot} is not available yet`);
+    return [];
+  }
+
   try {
-    console.log('Fetching news for all categories');
+    console.log(`Fetching news for time slot: ${timeSlot}`);
     const url = `https://newsapi.org/v2/top-headlines?country=us&pageSize=20&apiKey=${NEWS_API_KEY}`;
     console.log('News API URL:', url);
     
@@ -69,7 +102,7 @@ async function fetchAndProcessNews(timeSlot: string) {
       console.error('News API Error:', data.message);
       if (data.message?.includes('too many requests')) {
         // Return cached data if available
-        const cacheKey = getCacheKey(timeSlot as string);
+        const cacheKey = getCacheKey(timeSlot);
         const cachedData = await getCachedData(cacheKey);
         if (cachedData) {
           console.log('Rate limited - returning cached data');
@@ -127,6 +160,7 @@ async function fetchAndProcessNews(timeSlot: string) {
               const processedArticle = {
                 id: Math.random().toString(36).substring(7),
                 timestamp: new Date(article.publishedAt),
+                timeSlot: timeSlot as TimeSlot,
                 category,
                 headline: article.title,
                 content: completion.choices[0]?.message?.content || article.content || article.description,
@@ -141,6 +175,7 @@ async function fetchAndProcessNews(timeSlot: string) {
               return {
                 id: Math.random().toString(36).substring(7),
                 timestamp: new Date(article.publishedAt),
+                timeSlot: timeSlot as TimeSlot,
                 category,
                 headline: article.title,
                 content: article.description || article.content || '',
@@ -317,6 +352,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         error: 'Time slot is required',
         status: 'error',
         stories: [] 
+      });
+    }
+
+    // Check if the requested time slot is valid
+    if (!['10AM', '3PM', '8PM'].includes(timeSlot as string)) {
+      return res.status(400).json({
+        error: 'Invalid time slot. Must be 10AM, 3PM, or 8PM',
+        status: 'error',
+        stories: []
+      });
+    }
+
+    // Check if the time slot is available
+    if (!isTimeSlotAvailable(timeSlot as TimeSlot)) {
+      return res.json({
+        time: timeSlot,
+        date: new Date().toLocaleDateString('en-US', { 
+          day: 'numeric', 
+          month: 'numeric', 
+          year: '2-digit'
+        }).replace(/\//g, ' '),
+        stories: [],
+        status: 'success',
+        message: `News for ${timeSlot} is not available yet`
       });
     }
 

@@ -30,7 +30,7 @@ function App() {
   const [scrollProgress, setScrollProgress] = useState(0);
   const [activeCategory, setActiveCategory] = useState('all');
   
-  const { timeBlock, loading, error } = useNews(activeTime);
+  const { timeBlock, loading, error, message } = useNews(activeTime);
   
   console.log('Current state:', {
     activeTime,
@@ -164,6 +164,10 @@ function App() {
               {loading ? (
                 <div className="flex items-center justify-center py-20">
                   <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                </div>
+              ) : message ? (
+                <div className="text-center py-20 text-gray-500">
+                  {message}
                 </div>
               ) : filteredStories.length === 0 ? (
                 <div className="text-center py-20 text-gray-500">

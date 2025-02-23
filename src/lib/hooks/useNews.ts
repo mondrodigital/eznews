@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { TimeSlot, TimeBlock } from '../types';
-import { getNewsForTimeSlot } from '../news-service';
 
 export function useNews(timeSlot: TimeSlot) {
   const [timeBlock, setTimeBlock] = useState<TimeBlock | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -14,6 +14,7 @@ export function useNews(timeSlot: TimeSlot) {
       try {
         setLoading(true);
         setError(null);
+        setMessage(null);
         console.log('useNews: Fetching news for time slot:', timeSlot);
         
         const response = await fetch(`/api/news?timeSlot=${timeSlot}`);
@@ -40,9 +41,14 @@ export function useNews(timeSlot: TimeSlot) {
           return;
         }
 
+        // Handle the case where news is not available yet
+        if (data.message) {
+          setMessage(data.message);
+        }
+
         if (!data.stories?.length) {
           console.log('No stories in response');
-          setError('No news available at this time');
+          setError(data.message || 'No news available at this time');
           setTimeBlock({
             time: timeSlot,
             date: data.date,
@@ -50,7 +56,12 @@ export function useNews(timeSlot: TimeSlot) {
           });
         } else {
           console.log(`Received ${data.stories.length} stories`);
-          setTimeBlock(data);
+          // Filter stories to only show ones for this time slot
+          const filteredStories = data.stories.filter((story: any) => story.timeSlot === timeSlot);
+          setTimeBlock({
+            ...data,
+            stories: filteredStories
+          });
           setError(null);
         }
       } catch (err) {
@@ -83,5 +94,5 @@ export function useNews(timeSlot: TimeSlot) {
     };
   }, [timeSlot]);
 
-  return { timeBlock, loading, error };
+  return { timeBlock, loading, error, message };
 } 
