@@ -512,7 +512,11 @@ function setMemoryCachedData(key: string, data: any) {
 // Add environment variable validation at the top
 const requiredEnvVars = {
   NEWS_API_KEY: process.env.NEWS_API_KEY,
-  OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+  OPENAI_API_KEY: process.env.OPENAI_API_KEY
+};
+
+// Optional environment variables
+const optionalEnvVars = {
   UNSPLASH_ACCESS_KEY: process.env.UNSPLASH_ACCESS_KEY
 };
 
@@ -531,10 +535,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Content-Type', 'application/json');
 
   // Handle OPTIONS request
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    return res.status(200).json({ status: 'ok' });
   }
 
   try {
@@ -621,8 +626,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       status: response.status
     });
     
-    // Set content type explicitly
-    res.setHeader('Content-Type', 'application/json');
     return res.status(200).json(response);
   } catch (error) {
     console.error('API Error:', error);
@@ -633,8 +636,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       date: getTodayKey()
     });
     
-    // Set content type explicitly and ensure proper error response
-    res.setHeader('Content-Type', 'application/json');
     return res.status(500).json({ 
       error: 'Failed to fetch news',
       details: errorMessage,

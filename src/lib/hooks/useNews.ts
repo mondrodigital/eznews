@@ -29,15 +29,14 @@ export function useNews(timeSlot: TimeSlot) {
         const response = await fetch(apiUrl);
         console.log('API Response status:', response.status);
         
-        const text = await response.text();
-        console.log('API Response text:', text);
-        
         let data;
         try {
+          const text = await response.text();
+          console.log('API Response text:', text);
           data = JSON.parse(text);
         } catch (e) {
           console.error('Failed to parse API response:', e);
-          throw new Error(`Invalid response from server: ${text}`);
+          throw new Error('Invalid response from server');
         }
         
         console.log('API Response data:', data);
