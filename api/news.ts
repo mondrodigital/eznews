@@ -58,8 +58,18 @@ function getCurrentTimeSlot(): TimeSlot {
   return '10AM';
 }
 
-// Add function to check if a time slot is available
+// Add function to check if we're in development
+function isDevelopment(): boolean {
+  return process.env.NODE_ENV === 'development' || process.env.VERCEL_ENV === 'development' || !!process.env.DEV;
+}
+
+// Update the time slot availability check
 function isTimeSlotAvailable(timeSlot: TimeSlot): boolean {
+  // In development, all time slots are available
+  if (isDevelopment()) {
+    return true;
+  }
+
   const hour = new Date().getHours();
   
   switch (timeSlot) {
@@ -346,8 +356,14 @@ function setMemoryCachedData(key: string, data: any) {
   });
 }
 
-// Update the handler to be more resilient
+// Update the handler with more logging
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  console.log('Environment:', {
+    NODE_ENV: process.env.NODE_ENV,
+    VERCEL_ENV: process.env.VERCEL_ENV,
+    isDev: isDevelopment()
+  });
+
   // Enable CORS
   await new Promise((resolve, reject) => {
     cors()(req, res, (result) => {
@@ -369,6 +385,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const { timeSlot } = req.query;
+    console.log('Request:', {
+      timeSlot,
+      currentHour: new Date().getHours(),
+      isAvailable: timeSlot ? isTimeSlotAvailable(timeSlot as TimeSlot) : false
+    });
+
     if (!timeSlot || !['10AM', '3PM', '8PM'].includes(timeSlot as string)) {
       return res.status(400).json({ 
         error: 'Valid time slot is required (10AM, 3PM, or 8PM)',
@@ -378,12 +400,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const cacheKey = getCacheKey();
+    console.log('Cache key:', cacheKey);
     
     // Try to get today's news from cache
     let dailyNews = await getCachedData(cacheKey);
+    console.log('Cache status:', {
+      hasCachedNews: !!dailyNews,
+      hasArticles: !!(dailyNews?.articles),
+      articleCounts: dailyNews?.articles ? {
+        '10AM': dailyNews.articles['10AM']?.length || 0,
+        '3PM': dailyNews.articles['3PM']?.length || 0,
+        '8PM': dailyNews.articles['8PM']?.length || 0
+      } : null
+    });
 
     if (!dailyNews || !dailyNews.articles) {
-      console.log('No cached news found for today, fetching fresh news');
+      console.log('Fetching fresh news');
       // Fetch and process all news for today
       const articles = await fetchAndProcessDailyNews();
       
@@ -395,6 +427,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       
       // Cache the daily news
       await setCachedData(cacheKey, dailyNews);
+      console.log('Fresh news cached');
     }
 
     // Ensure articles object exists
@@ -406,6 +439,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Check if the requested time slot is available
     if (!isTimeSlotAvailable(timeSlot as TimeSlot)) {
+      console.log(`Time slot ${timeSlot} not available`);
       return res.json({
         time: timeSlot,
         date: getTodayKey().replace(/-/g, ' '),
@@ -416,12 +450,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Return the news for the requested time slot
-    return res.json({
+    const response = {
       time: timeSlot,
       date: getTodayKey().replace(/-/g, ' '),
       stories: articles[timeSlot as TimeSlot] || [],
       status: 'success'
+    };
+    console.log('Response:', {
+      time: response.time,
+      date: response.date,
+      storyCount: response.stories.length
     });
+    return res.json(response);
   } catch (error) {
     console.error('API Error:', error);
     return res.status(500).json({ 
