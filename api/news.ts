@@ -2,7 +2,7 @@ import { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import cors from 'cors';
 import OpenAI from 'openai';
-import { Category, CATEGORIES } from './types';
+import { Category, CATEGORIES, TimeSlot, Story } from './types';
 
 const NEWS_API_KEY = process.env.NEWS_API_KEY;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
@@ -40,8 +40,6 @@ interface NewsAPIArticle {
   url: string;
   category?: string;
 }
-
-type TimeSlot = '10AM' | '3PM' | '8PM';
 
 // Add function to get the current time slot
 function getCurrentTimeSlot(): TimeSlot {
@@ -246,7 +244,6 @@ async function fetchAndProcessDailyNews() {
   try {
     console.log('Fetching daily news');
     
-    // Get date range for the last week to ensure we have enough articles
     const end = new Date();
     const start = new Date();
     start.setDate(start.getDate() - 7);
@@ -258,159 +255,168 @@ async function fetchAndProcessDailyNews() {
     
     console.log('Fetching news with date range:', dateRange);
     
-    // Fetch news for each category in parallel
-    const categoryPromises = CATEGORIES.map(async (category) => {
-      const queries = getCategoryQueries(category);
-      const queryString = queries.join(' OR ');
-      
-      const url = new URL('https://newsapi.org/v2/everything');
-      url.searchParams.append('apiKey', NEWS_API_KEY);
-      url.searchParams.append('q', queryString);
-      url.searchParams.append('language', 'en');
-      url.searchParams.append('sortBy', 'publishedAt');
-      url.searchParams.append('pageSize', '20'); // Get enough articles for 4 per time slot
-      url.searchParams.append('from', dateRange.from);
-      url.searchParams.append('to', dateRange.to);
-      
-      console.log(`Fetching ${category} news with query:`, queryString);
-      
-      const response = await fetch(url.toString());
-      const data = await response.json();
-      
-      if (data.status === 'error') {
-        console.error(`Error fetching ${category} news:`, data.message);
-        return [];
+    // Fetch categories sequentially to avoid rate limits
+    const allArticles = [];
+    for (const category of CATEGORIES) {
+      try {
+        const queries = getCategoryQueries(category);
+        const queryString = queries.join(' OR ');
+        
+        const url = new URL('https://newsapi.org/v2/everything');
+        url.searchParams.append('apiKey', NEWS_API_KEY);
+        url.searchParams.append('q', queryString);
+        url.searchParams.append('language', 'en');
+        url.searchParams.append('sortBy', 'publishedAt');
+        url.searchParams.append('pageSize', '10'); // Reduced to avoid rate limits
+        url.searchParams.append('from', dateRange.from);
+        url.searchParams.append('to', dateRange.to);
+        
+        console.log(`Fetching ${category} news with query:`, queryString);
+        
+        const response = await fetch(url.toString());
+        
+        if (!response.ok) {
+          const text = await response.text();
+          console.error(`Error fetching ${category} news:`, {
+            status: response.status,
+            statusText: response.statusText,
+            body: text
+          });
+          
+          if (response.status === 429) {
+            throw new Error(`Rate limit exceeded for ${category}`);
+          }
+          
+          continue; // Skip this category but continue with others
+        }
+        
+        const data = await response.json();
+        
+        if (data.status === 'error') {
+          console.error(`NewsAPI error for ${category}:`, data.message);
+          continue;
+        }
+
+        const articles = (data.articles || []).map((article: NewsAPIArticle) => ({
+          ...article,
+          category
+        }));
+        
+        console.log(`Received ${articles.length} articles for ${category}`);
+        allArticles.push(...articles);
+        
+        // Add delay between requests
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } catch (error) {
+        console.error(`Error processing ${category}:`, error);
+        continue;
       }
-
-      console.log(`Received ${data.articles?.length || 0} articles for ${category}`);
-      return (data.articles || []).map((article: NewsAPIArticle) => ({
-        ...article,
-        category // Add category to each article
-      }));
-    });
-
-    const categoryArticles = await Promise.all(categoryPromises);
-    const allArticles = categoryArticles.flat();
+    }
+    
     console.log('Total articles fetched:', allArticles.length);
     
-    // Process articles for each category
-    const processedArticles = await Promise.all(
-      CATEGORIES.map(async (category) => {
-        const articles = allArticles.filter(a => a.category === category);
-        console.log(`Processing ${articles.length} articles for ${category}`);
-        
-        const processed = await Promise.all(
-          articles.slice(0, 12).map(async (article: NewsAPIArticle) => { // Process 12 articles (4 per time slot)
-            try {
-              const completion = await openai.chat.completions.create({
-                model: "gpt-3.5-turbo",
-                messages: [
-                  {
-                    role: "system",
-                    content: "You are a helpful assistant that processes news articles. Take the article and rewrite it in a clear, engaging style while preserving all key information. Format with paragraphs separated by newlines."
-                  },
-                  {
-                    role: "user",
-                    content: article.content || article.description || ""
-                  }
-                ],
-                max_tokens: 250,
-                temperature: 0.7,
-              });
-
-              return {
-                id: Math.random().toString(36).substring(7),
-                timestamp: new Date(article.publishedAt),
-                category,
-                headline: article.title,
-                content: completion.choices[0]?.message?.content || article.content || article.description,
-                source: article.source.name,
-                image: article.urlToImage || `https://placehold.co/600x400/2563eb/ffffff?text=${category}+News`,
-                originalUrl: article.url
-              };
-            } catch (error) {
-              console.error('Error processing article with OpenAI:', error);
-              return {
-                id: Math.random().toString(36).substring(7),
-                timestamp: new Date(article.publishedAt),
-                category,
-                headline: article.title,
-                content: article.description || article.content || '',
-                source: article.source.name,
-                image: article.urlToImage || `https://placehold.co/600x400/2563eb/ffffff?text=${category}+News`,
-                originalUrl: article.url
-              };
-            }
-          })
-        );
-        return processed;
-      })
-    );
-
-    // Flatten and distribute across time slots
-    const allProcessedArticles = processedArticles.flat();
-    const timeSlots: TimeSlot[] = ['10AM', '3PM', '8PM'];
+    if (allArticles.length === 0) {
+      throw new Error('No articles could be fetched from NewsAPI');
+    }
     
-    // Initialize distribution with empty arrays
+    // Process articles sequentially to avoid OpenAI rate limits
+    const processedArticles: Array<{
+      id: string;
+      timestamp: Date;
+      category: Category;
+      headline: string;
+      content: string;
+      source: string;
+      image: string;
+      originalUrl: string;
+    }> = [];
+    for (const category of CATEGORIES) {
+      const categoryArticles = allArticles.filter(a => a.category === category);
+      console.log(`Processing ${categoryArticles.length} articles for ${category}`);
+      
+      for (const article of categoryArticles.slice(0, 6)) {
+        try {
+          const processed = await processArticle(article, category);
+          if (processed) {
+            processedArticles.push(processed);
+          }
+          // Add delay between OpenAI requests
+          await new Promise(resolve => setTimeout(resolve, 500));
+        } catch (error) {
+          console.error(`Error processing article:`, error);
+          // Use fallback without OpenAI processing
+          processedArticles.push({
+            id: Math.random().toString(36).substring(7),
+            timestamp: new Date(article.publishedAt),
+            category,
+            headline: article.title,
+            content: article.description || article.content || 'No content available',
+            source: article.source.name,
+            image: article.urlToImage || `https://placehold.co/600x400/2563eb/ffffff?text=${category}+News`,
+            originalUrl: article.url
+          });
+        }
+      }
+    }
+
+    // Distribute articles across time slots
+    const timeSlots: TimeSlot[] = ['10AM', '3PM', '8PM'];
     const distribution: Record<TimeSlot, any[]> = {
       '10AM': [],
       '3PM': [],
       '8PM': []
     };
 
-    // Group articles by category
-    const articlesByCategory = CATEGORIES.reduce((acc, category) => {
-      acc[category] = allProcessedArticles.filter(a => a.category === category);
-      return acc;
-    }, {} as Record<Category, any[]>);
-
-    // Distribute 4 articles per category to each time slot
+    // Ensure even distribution
     timeSlots.forEach((slot, slotIndex) => {
       CATEGORIES.forEach(category => {
-        const categoryArticles = articlesByCategory[category];
-        const start = slotIndex * 4; // 4 articles per time slot
-        const end = start + 4;
+        const categoryArticles = processedArticles.filter(a => a.category === category);
+        const start = slotIndex * 2; // 2 articles per category per time slot
+        const end = start + 2;
         const slotArticles = categoryArticles.slice(start, end);
         distribution[slot].push(...slotArticles);
       });
     });
 
-    // Log distribution details
-    console.log('Distribution details:', {
-      total: allProcessedArticles.length,
-      byTimeSlot: {
-        '10AM': {
-          total: distribution['10AM'].length,
-          byCategory: CATEGORIES.reduce((acc, cat) => {
-            acc[cat] = distribution['10AM'].filter(a => a.category === cat).length;
-            return acc;
-          }, {} as Record<string, number>)
-        },
-        '3PM': {
-          total: distribution['3PM'].length,
-          byCategory: CATEGORIES.reduce((acc, cat) => {
-            acc[cat] = distribution['3PM'].filter(a => a.category === cat).length;
-            return acc;
-          }, {} as Record<string, number>)
-        },
-        '8PM': {
-          total: distribution['8PM'].length,
-          byCategory: CATEGORIES.reduce((acc, cat) => {
-            acc[cat] = distribution['8PM'].filter(a => a.category === cat).length;
-            return acc;
-          }, {} as Record<string, number>)
-        }
-      }
-    });
-
     return distribution;
   } catch (error) {
-    console.error('Error fetching daily news:', error);
+    console.error('Error in fetchAndProcessDailyNews:', error);
+    throw error; // Re-throw to be handled by the main handler
+  }
+}
+
+// Helper function to process a single article
+async function processArticle(article: NewsAPIArticle, category: Category) {
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: [
+        {
+          role: "system",
+          content: "You are a helpful assistant that processes news articles. Take the article and rewrite it in a clear, engaging style while preserving all key information. Format with paragraphs separated by newlines."
+        },
+        {
+          role: "user",
+          content: article.content || article.description || ""
+        }
+      ],
+      max_tokens: 250,
+      temperature: 0.7,
+    });
+
     return {
-      '10AM': [],
-      '3PM': [],
-      '8PM': []
+      id: Math.random().toString(36).substring(7),
+      timestamp: new Date(article.publishedAt),
+      category,
+      headline: article.title,
+      content: completion.choices[0]?.message?.content || article.content || article.description || 'No content available',
+      source: article.source.name,
+      image: article.urlToImage || `https://placehold.co/600x400/2563eb/ffffff?text=${category}+News`,
+      originalUrl: article.url
     };
+  } catch (error) {
+    console.error('Error processing article with OpenAI:', error);
+    throw error;
   }
 }
 
