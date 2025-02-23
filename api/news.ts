@@ -2,6 +2,7 @@ import { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import cors from 'cors';
 import OpenAI from 'openai';
+import { Category, CATEGORIES } from '../src/lib/types';
 
 const NEWS_API_KEY = process.env.NEWS_API_KEY;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
@@ -26,8 +27,6 @@ const openai = new OpenAI({
   apiKey: OPENAI_API_KEY
 });
 
-const CATEGORIES = ['ai', 'robotics', 'biotech'] as const;
-
 // Add type definition at the top of the file
 interface NewsAPIArticle {
   title: string;
@@ -42,12 +41,6 @@ interface NewsAPIArticle {
   category?: string;
 }
 
-type Category = typeof CATEGORIES[number];
-
-// Add memory cache as fallback
-const memoryCache = new Map<string, { data: any; timestamp: number }>();
-
-// Add time slot type
 type TimeSlot = '10AM' | '3PM' | '8PM';
 
 // Add function to get the current time slot
@@ -124,6 +117,127 @@ function getCacheKey(timeSlot?: string): string {
   return timeSlot ? `news:${date}:${timeSlot}` : `news:${date}`;
 }
 
+// Add memory cache as fallback
+const memoryCache = new Map<string, { data: any; timestamp: number }>();
+
+// Update the determineCategory function
+function determineCategory(article: NewsAPIArticle): Category | null {
+  const categoryKeywords: Record<Category, string[]> = {
+    tech: [
+      'technology',
+      'software',
+      'digital',
+      'tech',
+      'computing',
+      'internet'
+    ],
+    finance: [
+      'finance',
+      'business',
+      'market',
+      'investment',
+      'venture capital',
+      'startup funding'
+    ],
+    science: [
+      'science',
+      'research',
+      'discovery',
+      'quantum',
+      'space',
+      'physics'
+    ],
+    health: [
+      'health',
+      'medical',
+      'healthcare',
+      'medicine',
+      'biomedical',
+      'clinical'
+    ],
+    ai: [
+      'artificial intelligence',
+      'machine learning',
+      'deep learning',
+      'neural network',
+      'ai model',
+      'gpt'
+    ]
+  };
+
+  const text = `${article.title} ${article.description || ''} ${article.content || ''}`.toLowerCase();
+
+  // First try exact category matches if the article has a category
+  if (article.category) {
+    const normalizedCategory = article.category.toLowerCase();
+    for (const [category, keywords] of Object.entries(categoryKeywords)) {
+      if (keywords.some(keyword => normalizedCategory.includes(keyword))) {
+        return category as Category;
+      }
+    }
+  }
+
+  // Then try keyword matching in the full text
+  for (const [category, keywords] of Object.entries(categoryKeywords)) {
+    if (keywords.some(keyword => text.includes(keyword))) {
+      return category as Category;
+    }
+  }
+
+  return null;
+}
+
+// Helper function to get search queries for each category
+function getCategoryQueries(category: Category): string[] {
+  switch (category) {
+    case 'tech':
+      return [
+        'technology innovation',
+        'tech startup',
+        'software development',
+        'digital technology',
+        'tech industry',
+        'emerging technology'
+      ];
+    case 'finance':
+      return [
+        'business finance',
+        'stock market',
+        'financial technology',
+        'investment news',
+        'venture capital',
+        'startup funding'
+      ];
+    case 'science':
+      return [
+        'scientific discovery',
+        'research breakthrough',
+        'space exploration',
+        'quantum computing',
+        'scientific innovation',
+        'research development'
+      ];
+    case 'health':
+      return [
+        'healthcare innovation',
+        'medical technology',
+        'health research',
+        'digital health',
+        'medical breakthrough',
+        'healthcare startup'
+      ];
+    case 'ai':
+      return [
+        'artificial intelligence',
+        'machine learning',
+        'GPT AI',
+        'OpenAI',
+        'DeepMind',
+        'AI innovation'
+      ];
+  }
+}
+
 async function fetchAndProcessDailyNews() {
   if (!NEWS_API_KEY) {
     throw new Error('NEWS_API_KEY is not configured');
@@ -154,7 +268,7 @@ async function fetchAndProcessDailyNews() {
       url.searchParams.append('q', queryString);
       url.searchParams.append('language', 'en');
       url.searchParams.append('sortBy', 'publishedAt');
-      url.searchParams.append('pageSize', '30'); // Increased page size
+      url.searchParams.append('pageSize', '20'); // Get enough articles for 4 per time slot
       url.searchParams.append('from', dateRange.from);
       url.searchParams.append('to', dateRange.to);
       
@@ -186,7 +300,7 @@ async function fetchAndProcessDailyNews() {
         console.log(`Processing ${articles.length} articles for ${category}`);
         
         const processed = await Promise.all(
-          articles.slice(0, 15).map(async (article: NewsAPIArticle) => {
+          articles.slice(0, 12).map(async (article: NewsAPIArticle) => { // Process 12 articles (4 per time slot)
             try {
               const completion = await openai.chat.completions.create({
                 model: "gpt-3.5-turbo",
@@ -237,7 +351,7 @@ async function fetchAndProcessDailyNews() {
     const allProcessedArticles = processedArticles.flat();
     const timeSlots: TimeSlot[] = ['10AM', '3PM', '8PM'];
     
-    // Ensure we have 5 stories per category per time slot
+    // Initialize distribution with empty arrays
     const distribution: Record<TimeSlot, any[]> = {
       '10AM': [],
       '3PM': [],
@@ -250,14 +364,12 @@ async function fetchAndProcessDailyNews() {
       return acc;
     }, {} as Record<Category, any[]>);
 
-    // Distribute articles evenly across time slots
+    // Distribute 4 articles per category to each time slot
     timeSlots.forEach((slot, slotIndex) => {
       CATEGORIES.forEach(category => {
         const categoryArticles = articlesByCategory[category];
-        // Calculate start index for this time slot
-        const articlesPerSlot = Math.floor(categoryArticles.length / timeSlots.length);
-        const start = slotIndex * articlesPerSlot;
-        const end = start + articlesPerSlot;
+        const start = slotIndex * 4; // 4 articles per time slot
+        const end = start + 4;
         const slotArticles = categoryArticles.slice(start, end);
         distribution[slot].push(...slotArticles);
       });
@@ -300,109 +412,6 @@ async function fetchAndProcessDailyNews() {
       '8PM': []
     };
   }
-}
-
-// Helper function to get search queries for each category
-function getCategoryQueries(category: Category): string[] {
-  switch (category) {
-    case 'ai':
-      return [
-        'artificial intelligence',
-        'machine learning',
-        'GPT AI',
-        'OpenAI',
-        'DeepMind',
-        'Anthropic'
-      ];
-    case 'robotics':
-      return [
-        'robotics',
-        'robot technology',
-        'Boston Dynamics',
-        'industrial robotics',
-        'autonomous robots',
-        'automation'
-      ];
-    case 'biotech':
-      return [
-        'biotechnology',
-        'CRISPR',
-        'gene editing',
-        'synthetic biology',
-        'biotech innovation',
-        'pharmaceutical research'
-      ];
-  }
-}
-
-// Update the determineCategory function
-function determineCategory(article: NewsAPIArticle): Category | null {
-  const categoryKeywords: Record<Category, string[]> = {
-    ai: [
-      'artificial intelligence',
-      'machine learning',
-      'llm',
-      'gpt',
-      'deep learning',
-      'neural network',
-      'ai model',
-      'openai',
-      'anthropic',
-      'deepmind',
-      'large language model',
-      'computer vision'
-    ],
-    robotics: [
-      'robotics',
-      'automation',
-      'autonomous',
-      'robot',
-      'self-driving',
-      'industrial automation',
-      'boston dynamics',
-      'manufacturing',
-      'warehouse automation',
-      'tesla',
-      'automated',
-      'drone'
-    ],
-    biotech: [
-      'biotech',
-      'biotechnology',
-      'crispr',
-      'gene editing',
-      'drug discovery',
-      'synthetic biology',
-      'genomics',
-      'moderna',
-      'ginkgo bioworks',
-      'longevity',
-      'clinical trial',
-      'pharmaceutical',
-      'vaccine'
-    ]
-  };
-
-  const text = `${article.title} ${article.description || ''} ${article.content || ''}`.toLowerCase();
-
-  // First try exact category matches if the article has a category
-  if (article.category) {
-    const normalizedCategory = article.category.toLowerCase();
-    for (const [category, keywords] of Object.entries(categoryKeywords)) {
-      if (keywords.some(keyword => normalizedCategory.includes(keyword))) {
-        return category as Category;
-      }
-    }
-  }
-
-  // Then try keyword matching in the full text
-  for (const [category, keywords] of Object.entries(categoryKeywords) as [Category, string[]][]) {
-    if (keywords.some(keyword => text.includes(keyword))) {
-      return category;
-    }
-  }
-
-  return null;
 }
 
 async function getCachedData(key: string) {
