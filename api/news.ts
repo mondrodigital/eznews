@@ -131,40 +131,43 @@ async function fetchAndProcessDailyNews() {
 
   try {
     console.log('Fetching daily news');
-    const url = `https://newsapi.org/v2/top-headlines?country=us&pageSize=30&apiKey=${NEWS_API_KEY}`;
-    console.log('News API URL:', url);
     
-    const response = await fetch(url);
-    const data = await response.json();
-    
-    if (data.status === 'error') {
-      throw new Error(data.message);
-    }
-
-    if (!data.articles?.length) {
-      return {
-        '10AM': [],
-        '3PM': [],
-        '8PM': []
-      };
-    }
-
-    // Group articles by category first
-    const articlesByCategory = new Map();
-    CATEGORIES.forEach(category => articlesByCategory.set(category, []));
-
-    data.articles.forEach((article: NewsAPIArticle) => {
-      const category = determineCategory(article);
-      if (category) {
-        articlesByCategory.get(category).push(article);
+    // Fetch news for each category in parallel
+    const categoryPromises = CATEGORIES.map(async (category) => {
+      const queries = getCategoryQueries(category);
+      const mainQuery = queries[0];
+      const optionalQueries = queries.slice(1).join(' OR ');
+      
+      const url = new URL('https://newsapi.org/v2/everything');
+      url.searchParams.append('apiKey', NEWS_API_KEY);
+      url.searchParams.append('q', `"${mainQuery}" ${optionalQueries}`);
+      url.searchParams.append('language', 'en');
+      url.searchParams.append('sortBy', 'publishedAt');
+      url.searchParams.append('pageSize', '15'); // Get more articles per category
+      
+      console.log(`Fetching ${category} news with query:`, url.searchParams.get('q'));
+      
+      const response = await fetch(url.toString());
+      const data = await response.json();
+      
+      if (data.status === 'error') {
+        console.error(`Error fetching ${category} news:`, data.message);
+        return [];
       }
+
+      return data.articles || [];
     });
 
-    // Process each category's articles
+    const categoryArticles = await Promise.all(categoryPromises);
+    
+    // Process articles for each category
     const processedArticles = await Promise.all(
-      Array.from(articlesByCategory.entries()).map(async ([category, articles]) => {
+      CATEGORIES.map(async (category, index) => {
+        const articles = categoryArticles[index];
+        console.log(`Processing ${articles.length} articles for ${category}`);
+        
         const processed = await Promise.all(
-          articles.slice(0, 3).map(async (article: NewsAPIArticle) => {
+          articles.map(async (article: NewsAPIArticle) => {
             try {
               const completion = await openai.chat.completions.create({
                 model: "gpt-3.5-turbo",
@@ -214,21 +217,35 @@ async function fetchAndProcessDailyNews() {
     // Flatten and distribute across time slots
     const allProcessedArticles = processedArticles.flat();
     const timeSlots: TimeSlot[] = ['10AM', '3PM', '8PM'];
-    const articlesPerSlot = Math.ceil(allProcessedArticles.length / timeSlots.length);
     
+    // Ensure we have 5 stories per category per time slot
     const distribution: Record<TimeSlot, any[]> = {
       '10AM': [],
       '3PM': [],
       '8PM': []
     };
 
-    timeSlots.forEach((slot, index) => {
-      const start = index * articlesPerSlot;
-      const slotArticles = allProcessedArticles.slice(start, start + articlesPerSlot);
-      distribution[slot] = slotArticles.map(article => ({
-        ...article,
-        timeSlot: slot
-      }));
+    // Group articles by category
+    const articlesByCategory = CATEGORIES.reduce((acc, category) => {
+      acc[category] = allProcessedArticles.filter(a => a.category === category);
+      return acc;
+    }, {} as Record<Category, any[]>);
+
+    // Distribute 5 articles per category to each time slot
+    timeSlots.forEach((slot, slotIndex) => {
+      CATEGORIES.forEach(category => {
+        const categoryArticles = articlesByCategory[category];
+        const start = slotIndex * 5;
+        const slotArticles = categoryArticles.slice(start, start + 5);
+        distribution[slot].push(...slotArticles);
+      });
+    });
+
+    console.log('Distribution counts:', {
+      total: allProcessedArticles.length,
+      '10AM': distribution['10AM'].length,
+      '3PM': distribution['3PM'].length,
+      '8PM': distribution['8PM'].length
     });
 
     return distribution;
@@ -239,6 +256,39 @@ async function fetchAndProcessDailyNews() {
       '3PM': [],
       '8PM': []
     };
+  }
+}
+
+// Helper function to get search queries for each category
+function getCategoryQueries(category: Category): string[] {
+  switch (category) {
+    case 'ai':
+      return [
+        'artificial intelligence',
+        'machine learning',
+        'GPT AI',
+        'OpenAI',
+        'DeepMind',
+        'Anthropic'
+      ];
+    case 'robotics':
+      return [
+        'robotics',
+        'robot technology',
+        'Boston Dynamics',
+        'industrial robotics',
+        'autonomous robots',
+        'automation'
+      ];
+    case 'biotech':
+      return [
+        'biotechnology',
+        'CRISPR',
+        'gene editing',
+        'synthetic biology',
+        'biotech innovation',
+        'pharmaceutical research'
+      ];
   }
 }
 
