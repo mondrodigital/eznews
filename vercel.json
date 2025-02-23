@@ -2,19 +2,18 @@
   "version": 2,
   "buildCommand": "npm run build",
   "devCommand": "npm run dev",
+  "framework": "vite",
   "builds": [
     {
       "src": "api/**/*.ts",
-      "use": "@vercel/node",
-      "config": {
-        "includeFiles": ["api/**/*"]
-      }
+      "use": "@vercel/node"
     },
     {
       "src": "package.json",
       "use": "@vercel/static-build",
       "config": {
-        "distDir": "dist"
+        "distDir": "dist",
+        "zeroConfig": true
       }
     }
   ],
@@ -29,8 +28,11 @@
       }
     },
     {
+      "handle": "filesystem"
+    },
+    {
       "src": "/(.*)",
-      "dest": "/$1"
+      "dest": "/index.html"
     }
   ],
   "crons": [

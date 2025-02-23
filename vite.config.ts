@@ -37,16 +37,17 @@ export default defineConfig(({ mode }) => {
         input: {
           main: path.resolve(__dirname, 'index.html')
         }
-      }
+      },
+      // Ensure Vercel can handle the build
+      target: 'esnext',
+      minify: 'esbuild'
     },
+    // Ensure environment variables are properly replaced
     define: {
-      // Pass environment variables to the client
-      'process.env.VITE_NEWS_API_KEY': JSON.stringify(env.VITE_NEWS_API_KEY),
-      'process.env.VITE_OPENAI_API_KEY': JSON.stringify(env.VITE_OPENAI_API_KEY),
-      'process.env.VITE_UNSPLASH_ACCESS_KEY': JSON.stringify(env.VITE_UNSPLASH_ACCESS_KEY),
-      'process.env.VITE_CRON_SECRET': JSON.stringify(env.VITE_CRON_SECRET),
-      'process.env.SUPABASE_URL': JSON.stringify(env.SUPABASE_URL),
-      'process.env.SUPABASE_ANON_KEY': JSON.stringify(env.SUPABASE_ANON_KEY)
+      'process.env': Object.keys(env).reduce((acc, key) => {
+        acc[key] = JSON.stringify(env[key]);
+        return acc;
+      }, {} as Record<string, string>)
     }
   };
 });
