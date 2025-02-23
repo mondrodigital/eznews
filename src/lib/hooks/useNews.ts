@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { TimeSlot, TimeBlock } from '../types';
+import { clearNewsCache } from '../storage';
 
 export function useNews(timeSlot: TimeSlot) {
   const [timeBlock, setTimeBlock] = useState<TimeBlock | null>(null);
@@ -15,7 +16,10 @@ export function useNews(timeSlot: TimeSlot) {
         setError(null);
         console.log('useNews: Fetching news for time slot:', timeSlot);
         
-        const response = await fetch(`/api/news?timeSlot=${timeSlot}`);
+        // Clear cache to force fresh news
+        await clearNewsCache();
+        
+        const response = await fetch(`/api/news?timeSlot=${timeSlot}&_=${Date.now()}`);
         console.log('API Response status:', response.status);
         
         const data = await response.json();

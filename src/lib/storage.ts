@@ -2,10 +2,11 @@ import { TimeBlock, TimeSlot, NewsItem } from './types';
 import { isBrowser } from './client-env';
 
 const TTL = 24 * 60 * 60; // 24 hours in seconds
+const CACHE_VERSION = Date.now(); // Use timestamp as cache version
 
 // Storage key helper
 function getStorageKey(timeSlot: TimeSlot): string {
-  return `news:${timeSlot}`;
+  return `news:${CACHE_VERSION}:${timeSlot}`;
 }
 
 // Storage implementation
@@ -65,6 +66,27 @@ const storage = {
     }
   }
 };
+
+// Clear all news cache
+export async function clearNewsCache() {
+  if (!isBrowser) return;
+  
+  console.log('Clearing news cache...');
+  const keys = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && key.startsWith('news:')) {
+      keys.push(key);
+    }
+  }
+  
+  keys.forEach(key => {
+    localStorage.removeItem(key);
+    localStorage.removeItem(`${key}:expiry`);
+  });
+  
+  console.log(`Cleared ${keys.length} cache entries`);
+}
 
 export async function storeTimeBlock(timeSlot: TimeSlot, stories: NewsItem[]): Promise<void> {
   const timeBlock: TimeBlock = {
