@@ -9,11 +9,15 @@ const CATEGORIES: Category[] = ['ai', 'robotics', 'biotech'];
 async function processCategory(category: Category): Promise<NewsItem> {
   console.log(`\nProcessing ${category} category...`);
   
-  // Fetch articles for category
+  // Fetch all articles
   console.log(`Fetching articles for ${category}...`);
   const articles = await fetchNews();
-  const categoryArticles = articles.filter((article: NewsAPIArticle) => determineCategory(article) === category);
+  const categoryArticles = articles.filter(article => article.category === category);
   console.log(`Found ${categoryArticles.length} articles for ${category}`);
+  
+  if (categoryArticles.length === 0) {
+    throw new Error(`No articles found for category: ${category}`);
+  }
   
   // Select the most intriguing article
   console.log('Selecting most intriguing article...');
