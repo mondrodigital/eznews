@@ -132,20 +132,33 @@ async function fetchAndProcessDailyNews() {
   try {
     console.log('Fetching daily news');
     
+    // Get date range for the last week to ensure we have enough articles
+    const end = new Date();
+    const start = new Date();
+    start.setDate(start.getDate() - 7);
+    
+    const dateRange = {
+      from: start.toISOString().split('T')[0],
+      to: end.toISOString().split('T')[0]
+    };
+    
+    console.log('Fetching news with date range:', dateRange);
+    
     // Fetch news for each category in parallel
     const categoryPromises = CATEGORIES.map(async (category) => {
       const queries = getCategoryQueries(category);
-      const mainQuery = queries[0];
-      const optionalQueries = queries.slice(1).join(' OR ');
+      const queryString = queries.join(' OR ');
       
       const url = new URL('https://newsapi.org/v2/everything');
       url.searchParams.append('apiKey', NEWS_API_KEY);
-      url.searchParams.append('q', `"${mainQuery}" ${optionalQueries}`);
+      url.searchParams.append('q', queryString);
       url.searchParams.append('language', 'en');
       url.searchParams.append('sortBy', 'publishedAt');
-      url.searchParams.append('pageSize', '15'); // Get more articles per category
+      url.searchParams.append('pageSize', '30'); // Increased page size
+      url.searchParams.append('from', dateRange.from);
+      url.searchParams.append('to', dateRange.to);
       
-      console.log(`Fetching ${category} news with query:`, url.searchParams.get('q'));
+      console.log(`Fetching ${category} news with query:`, queryString);
       
       const response = await fetch(url.toString());
       const data = await response.json();
@@ -155,19 +168,25 @@ async function fetchAndProcessDailyNews() {
         return [];
       }
 
-      return data.articles || [];
+      console.log(`Received ${data.articles?.length || 0} articles for ${category}`);
+      return (data.articles || []).map((article: NewsAPIArticle) => ({
+        ...article,
+        category // Add category to each article
+      }));
     });
 
     const categoryArticles = await Promise.all(categoryPromises);
+    const allArticles = categoryArticles.flat();
+    console.log('Total articles fetched:', allArticles.length);
     
     // Process articles for each category
     const processedArticles = await Promise.all(
-      CATEGORIES.map(async (category, index) => {
-        const articles = categoryArticles[index];
+      CATEGORIES.map(async (category) => {
+        const articles = allArticles.filter(a => a.category === category);
         console.log(`Processing ${articles.length} articles for ${category}`);
         
         const processed = await Promise.all(
-          articles.map(async (article: NewsAPIArticle) => {
+          articles.slice(0, 15).map(async (article: NewsAPIArticle) => {
             try {
               const completion = await openai.chat.completions.create({
                 model: "gpt-3.5-turbo",
@@ -231,21 +250,45 @@ async function fetchAndProcessDailyNews() {
       return acc;
     }, {} as Record<Category, any[]>);
 
-    // Distribute 5 articles per category to each time slot
+    // Distribute articles evenly across time slots
     timeSlots.forEach((slot, slotIndex) => {
       CATEGORIES.forEach(category => {
         const categoryArticles = articlesByCategory[category];
-        const start = slotIndex * 5;
-        const slotArticles = categoryArticles.slice(start, start + 5);
+        // Calculate start index for this time slot
+        const articlesPerSlot = Math.floor(categoryArticles.length / timeSlots.length);
+        const start = slotIndex * articlesPerSlot;
+        const end = start + articlesPerSlot;
+        const slotArticles = categoryArticles.slice(start, end);
         distribution[slot].push(...slotArticles);
       });
     });
 
-    console.log('Distribution counts:', {
+    // Log distribution details
+    console.log('Distribution details:', {
       total: allProcessedArticles.length,
-      '10AM': distribution['10AM'].length,
-      '3PM': distribution['3PM'].length,
-      '8PM': distribution['8PM'].length
+      byTimeSlot: {
+        '10AM': {
+          total: distribution['10AM'].length,
+          byCategory: CATEGORIES.reduce((acc, cat) => {
+            acc[cat] = distribution['10AM'].filter(a => a.category === cat).length;
+            return acc;
+          }, {} as Record<string, number>)
+        },
+        '3PM': {
+          total: distribution['3PM'].length,
+          byCategory: CATEGORIES.reduce((acc, cat) => {
+            acc[cat] = distribution['3PM'].filter(a => a.category === cat).length;
+            return acc;
+          }, {} as Record<string, number>)
+        },
+        '8PM': {
+          total: distribution['8PM'].length,
+          byCategory: CATEGORIES.reduce((acc, cat) => {
+            acc[cat] = distribution['8PM'].filter(a => a.category === cat).length;
+            return acc;
+          }, {} as Record<string, number>)
+        }
+      }
     });
 
     return distribution;
