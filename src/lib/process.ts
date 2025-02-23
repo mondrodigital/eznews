@@ -104,6 +104,48 @@ export function shouldProcess(timeSlot: TimeSlot): boolean {
 
 export function determineCategory(article: NewsAPIArticle): Category | null {
   const categoryKeywords: Record<Category, string[]> = {
+    tech: [
+      'technology',
+      'software',
+      'digital',
+      'computing',
+      'startup',
+      'innovation',
+      'tech industry',
+      'cybersecurity',
+      'internet',
+      'mobile',
+      'cloud computing',
+      'hardware'
+    ],
+    science: [
+      'scientific',
+      'research',
+      'discovery',
+      'quantum',
+      'space',
+      'physics',
+      'chemistry',
+      'biology',
+      'astronomy',
+      'climate',
+      'laboratory',
+      'experiment'
+    ],
+    health: [
+      'healthcare',
+      'medical',
+      'health',
+      'medicine',
+      'clinical',
+      'patient',
+      'hospital',
+      'treatment',
+      'disease',
+      'wellness',
+      'therapy',
+      'diagnosis'
+    ],
     ai: [
       'artificial intelligence',
       'machine learning',
@@ -117,35 +159,6 @@ export function determineCategory(article: NewsAPIArticle): Category | null {
       'deepmind',
       'large language model',
       'computer vision'
-    ],
-    robotics: [
-      'robotics',
-      'automation',
-      'autonomous',
-      'robot',
-      'self-driving',
-      'industrial automation',
-      'boston dynamics',
-      'manufacturing',
-      'warehouse automation',
-      'tesla',
-      'automated',
-      'drone'
-    ],
-    biotech: [
-      'biotech',
-      'biotechnology',
-      'crispr',
-      'gene editing',
-      'drug discovery',
-      'synthetic biology',
-      'genomics',
-      'moderna',
-      'ginkgo bioworks',
-      'longevity',
-      'clinical trial',
-      'pharmaceutical',
-      'vaccine'
     ]
   };
 

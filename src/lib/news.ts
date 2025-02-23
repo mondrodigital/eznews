@@ -102,9 +102,10 @@ export async function fetchNews(): Promise<NewsAPIArticle[]> {
     
     console.log('Fetched articles by category:', {
       total: articles.length,
+      tech: articles.filter(a => a.category === 'tech').length,
+      science: articles.filter(a => a.category === 'science').length,
+      health: articles.filter(a => a.category === 'health').length,
       ai: articles.filter(a => a.category === 'ai').length,
-      robotics: articles.filter(a => a.category === 'robotics').length,
-      biotech: articles.filter(a => a.category === 'biotech').length,
       dateRange: dates
     });
 
