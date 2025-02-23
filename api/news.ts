@@ -503,7 +503,7 @@ function setMemoryCachedData(key: string, data: any) {
   });
 }
 
-// Update the handler to focus on filtering stored news
+// Update the handler to include better error handling and logging
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   console.log('Environment:', {
     NODE_ENV: process.env.NODE_ENV,
@@ -526,7 +526,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ 
       error: 'Method not allowed',
       status: 'error',
-      stories: [] 
+      stories: [],
+      time: null,
+      date: getTodayKey().replace(/-/g, ' ')
     });
   }
 
@@ -542,7 +544,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ 
         error: 'Valid time slot is required (10AM, 3PM, or 8PM)',
         status: 'error',
-        stories: [] 
+        stories: [],
+        time: timeSlot as string || null,
+        date: getTodayKey().replace(/-/g, ' ')
       });
     }
 
@@ -562,28 +566,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.log('Fresh news cached');
 
     // Return the articles for the requested time slot
+    const timeSlotArticles = articles[timeSlot as TimeSlot] || [];
+    console.log(`Found ${timeSlotArticles.length} articles for time slot ${timeSlot}`);
+
     const response = {
       time: timeSlot,
       date: getTodayKey().replace(/-/g, ' '),
-      stories: articles[timeSlot as TimeSlot] || [],
+      stories: timeSlotArticles,
       status: 'success'
     };
     
     console.log('Response:', {
       time: response.time,
       date: response.date,
-      storyCount: response.stories.length
+      storyCount: response.stories.length,
+      status: response.status
     });
     
     return res.json(response);
   } catch (error) {
     console.error('API Error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.log('Sending error response:', {
+      error: errorMessage,
+      timeSlot: req.query.timeSlot,
+      date: getTodayKey()
+    });
+    
     return res.status(500).json({ 
       error: 'Failed to fetch news',
-      details: error instanceof Error ? error.message : 'Unknown error',
+      details: errorMessage,
       status: 'error',
       stories: [],
-      time: req.query.timeSlot,
+      time: req.query.timeSlot as string || null,
       date: getTodayKey().replace(/-/g, ' ')
     });
   }

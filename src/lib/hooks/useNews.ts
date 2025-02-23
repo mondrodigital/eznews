@@ -24,17 +24,31 @@ export function useNews(timeSlot: TimeSlot) {
         const response = await fetch(`/api/news?timeSlot=${timeSlot}&force=true&_=${timestamp}`);
         console.log('API Response status:', response.status);
         
-        const data = await response.json();
+        const text = await response.text();
+        console.log('API Response text:', text);
+        
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch (e) {
+          console.error('Failed to parse API response:', e);
+          throw new Error('Invalid response from server');
+        }
+        
         console.log('API Response data:', data);
         
         if (!mounted) return;
 
-        if (data.status === 'error') {
+        if (data.status === 'error' || response.status !== 200) {
           console.error('API returned error:', data.error, data.details);
           setError(data.error || 'Failed to load news');
           setTimeBlock({
             time: timeSlot,
-            date: data.date,
+            date: data.date || new Date().toLocaleDateString('en-US', { 
+              day: 'numeric', 
+              month: 'numeric', 
+              year: '2-digit'
+            }).replace(/\//g, ' '),
             stories: []
           });
           return;
