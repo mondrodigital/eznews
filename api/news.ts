@@ -255,6 +255,13 @@ async function fetchAndProcessDailyNews() {
     
     console.log('Fetching news with date range:', dateRange);
     
+    // Initialize distribution structure
+    const distribution: Record<TimeSlot, any[]> = {
+      '10AM': [],
+      '3PM': [],
+      '8PM': []
+    };
+    
     // Fetch categories sequentially to avoid rate limits
     const allArticles = [];
     for (const category of CATEGORIES) {
@@ -284,7 +291,8 @@ async function fetchAndProcessDailyNews() {
           });
           
           if (response.status === 429) {
-            throw new Error(`Rate limit exceeded for ${category}`);
+            console.warn(`Rate limit exceeded for ${category}, skipping...`);
+            continue;
           }
           
           continue; // Skip this category but continue with others
@@ -309,14 +317,16 @@ async function fetchAndProcessDailyNews() {
         await new Promise(resolve => setTimeout(resolve, 1000));
       } catch (error) {
         console.error(`Error processing ${category}:`, error);
-        continue;
+        continue; // Skip this category but continue with others
       }
     }
     
     console.log('Total articles fetched:', allArticles.length);
     
+    // If we have no articles at all, return empty distribution
     if (allArticles.length === 0) {
-      throw new Error('No articles could be fetched from NewsAPI');
+      console.warn('No articles could be fetched from NewsAPI');
+      return distribution;
     }
     
     // Process articles sequentially to avoid OpenAI rate limits
@@ -330,43 +340,34 @@ async function fetchAndProcessDailyNews() {
       image: string;
       originalUrl: string;
     }> = [];
-    for (const category of CATEGORIES) {
-      const categoryArticles = allArticles.filter(a => a.category === category);
-      console.log(`Processing ${categoryArticles.length} articles for ${category}`);
-      
-      for (const article of categoryArticles.slice(0, 6)) {
-        try {
-          const processed = await processArticle(article, category);
-          if (processed) {
-            processedArticles.push(processed);
-          }
-          // Add delay between OpenAI requests
-          await new Promise(resolve => setTimeout(resolve, 500));
-        } catch (error) {
-          console.error(`Error processing article:`, error);
-          // Use fallback without OpenAI processing
-          processedArticles.push({
-            id: Math.random().toString(36).substring(7),
-            timestamp: new Date(article.publishedAt),
-            category,
-            headline: article.title,
-            content: article.description || article.content || 'No content available',
-            source: article.source.name,
-            image: article.urlToImage || `https://placehold.co/600x400/2563eb/ffffff?text=${category}+News`,
-            originalUrl: article.url
-          });
+
+    for (const article of allArticles) {
+      try {
+        const processed = await processArticle(article, article.category as Category);
+        if (processed) {
+          processedArticles.push(processed);
         }
+        // Add delay between OpenAI requests
+        await new Promise(resolve => setTimeout(resolve, 500));
+      } catch (error) {
+        console.error(`Error processing article:`, error);
+        // Use fallback without OpenAI processing
+        processedArticles.push({
+          id: Math.random().toString(36).substring(7),
+          timestamp: new Date(article.publishedAt),
+          category: article.category as Category,
+          headline: article.title,
+          content: article.description || article.content || 'No content available',
+          source: article.source.name,
+          image: article.urlToImage || `https://placehold.co/600x400/2563eb/ffffff?text=${article.category}+News`,
+          originalUrl: article.url
+        });
       }
     }
 
     // Distribute articles across time slots
     const timeSlots: TimeSlot[] = ['10AM', '3PM', '8PM'];
-    const distribution: Record<TimeSlot, any[]> = {
-      '10AM': [],
-      '3PM': [],
-      '8PM': []
-    };
-
+    
     // Ensure even distribution
     timeSlots.forEach((slot, slotIndex) => {
       CATEGORIES.forEach(category => {
@@ -381,7 +382,12 @@ async function fetchAndProcessDailyNews() {
     return distribution;
   } catch (error) {
     console.error('Error in fetchAndProcessDailyNews:', error);
-    throw error; // Re-throw to be handled by the main handler
+    // Return empty distribution instead of throwing
+    return {
+      '10AM': [],
+      '3PM': [],
+      '8PM': []
+    };
   }
 }
 
