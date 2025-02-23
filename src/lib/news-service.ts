@@ -16,7 +16,7 @@ const openai = new OpenAI({
   dangerouslyAllowBrowser: true
 });
 
-const CATEGORIES = ['tech', 'finance', 'science', 'health'] as const;
+const CATEGORIES = ['tech', 'finance', 'science', 'health', 'ai'] as const;
 
 // Function to get the API URL
 function getApiUrl() {
@@ -43,7 +43,11 @@ const newsCache = new Map<TimeSlot, TimeBlock>();
 async function fetchNewsForCategory(category: string): Promise<any[]> {
   console.log(`Fetching news for category: ${category}`);
   try {
-    const url = `https://newsapi.org/v2/top-headlines?country=us&category=${category}&pageSize=1&apiKey=${import.meta.env.VITE_NEWS_API_KEY}`;
+    // For AI category, use technology with AI-specific query
+    const url = category === 'ai' 
+      ? `https://newsapi.org/v2/everything?q=artificial%20intelligence&language=en&sortBy=publishedAt&pageSize=5&apiKey=${import.meta.env.VITE_NEWS_API_KEY}`
+      : `https://newsapi.org/v2/top-headlines?country=us&category=${category}&pageSize=5&apiKey=${import.meta.env.VITE_NEWS_API_KEY}`;
+    
     const response = await fetch(url);
     const data = await response.json();
     
