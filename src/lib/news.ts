@@ -23,6 +23,14 @@ const CATEGORY_QUERIES: Record<Category, string[]> = {
     'tech industry',
     'emerging technology'
   ],
+  finance: [
+    'business finance',
+    'stock market',
+    'financial technology',
+    'investment news',
+    'venture capital',
+    'startup funding'
+  ],
   science: [
     'scientific discovery',
     'research breakthrough',
@@ -103,6 +111,7 @@ export async function fetchNews(): Promise<NewsAPIArticle[]> {
     console.log('Fetched articles by category:', {
       total: articles.length,
       tech: articles.filter(a => a.category === 'tech').length,
+      finance: articles.filter(a => a.category === 'finance').length,
       science: articles.filter(a => a.category === 'science').length,
       health: articles.filter(a => a.category === 'health').length,
       ai: articles.filter(a => a.category === 'ai').length,

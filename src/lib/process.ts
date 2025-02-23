@@ -4,7 +4,7 @@ import { NewsAPIArticle, fetchNews } from './news';
 import { selectMostIntriguingArticle, rewriteArticle } from './gpt';
 import { storeTimeBlock } from './storage';
 
-const CATEGORIES: Category[] = ['tech', 'health', 'science', 'ai'];
+const CATEGORIES: Category[] = ['tech', 'finance', 'health', 'science', 'ai'];
 
 async function processCategory(category: Category): Promise<NewsItem[]> {
   console.log(`\nProcessing ${category} category...`);
@@ -117,6 +117,20 @@ export function determineCategory(article: NewsAPIArticle): Category | null {
       'mobile',
       'cloud computing',
       'hardware'
+    ],
+    finance: [
+      'finance',
+      'business',
+      'market',
+      'investment',
+      'venture capital',
+      'startup funding',
+      'economy',
+      'banking',
+      'stock market',
+      'cryptocurrency',
+      'fintech',
+      'trading'
     ],
     science: [
       'scientific',
