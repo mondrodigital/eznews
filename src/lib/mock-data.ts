@@ -15,22 +15,22 @@ export function createMockStories(): NewsItem[] {
     {
       id: '2',
       timestamp: new Date(),
-      category: 'robotics',
-      headline: 'Boston Dynamics Unveils Next-Generation Industrial Robot',
-      content: 'Boston Dynamics has revealed their latest industrial automation solution, combining advanced mobility with precise manipulation capabilities.\n\nThe new robot demonstrates unprecedented agility in complex manufacturing environments, capable of navigating tight spaces while performing intricate assembly tasks. Early trials show significant improvements in production efficiency.\n\nIndustry experts predict this development could transform manufacturing processes across multiple sectors.',
+      category: 'tech',
+      headline: 'Next-Generation Computing Platform Unveiled',
+      content: 'A major tech company has revealed their latest computing platform, combining advanced processing with unprecedented efficiency.\n\nThe new system demonstrates remarkable performance in complex computing tasks while maintaining energy efficiency. Early benchmarks show significant improvements over previous generations.\n\nIndustry experts predict this development could transform various computing applications across multiple sectors.',
       source: 'Wired',
-      image: 'https://placehold.co/600x400/059669/ffffff?text=Robotics+News',
-      originalUrl: 'https://example.com/robotics-news'
+      image: 'https://placehold.co/600x400/059669/ffffff?text=Tech+News',
+      originalUrl: 'https://example.com/tech-news'
     },
     {
       id: '3',
       timestamp: new Date(),
-      category: 'biotech',
-      headline: 'Breakthrough in CRISPR Gene Editing Technology',
-      content: 'Scientists have achieved a major breakthrough in CRISPR gene editing technology, developing a more precise and efficient method for genetic modifications.\n\nThe new technique shows significantly reduced off-target effects while maintaining high editing efficiency. This advancement could accelerate the development of genetic therapies for various diseases.\n\nResearchers are already planning clinical trials to test applications in treating genetic disorders.',
+      category: 'science',
+      headline: 'Breakthrough in Quantum Computing Research',
+      content: 'Scientists have achieved a major breakthrough in quantum computing technology, developing a more stable and efficient quantum bit system.\n\nThe new technique shows significantly improved coherence times while maintaining high processing efficiency. This advancement could accelerate the development of practical quantum computers.\n\nResearchers are already planning to scale up the system for more complex quantum computations.',
       source: 'Nature',
-      image: 'https://placehold.co/600x400/dc2626/ffffff?text=Biotech+News',
-      originalUrl: 'https://example.com/biotech-news'
+      image: 'https://placehold.co/600x400/dc2626/ffffff?text=Science+News',
+      originalUrl: 'https://example.com/science-news'
     }
   ];
 }

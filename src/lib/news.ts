@@ -15,29 +15,37 @@ export interface NewsAPIArticle {
 
 // Define search queries for each category
 const CATEGORY_QUERIES: Record<Category, string[]> = {
+  tech: [
+    'technology',
+    'tech startup',
+    'software development',
+    'digital technology',
+    'tech industry',
+    'emerging technology'
+  ],
+  science: [
+    'scientific discovery',
+    'research breakthrough',
+    'space exploration',
+    'quantum computing',
+    'scientific innovation',
+    'research development'
+  ],
+  health: [
+    'healthcare innovation',
+    'medical technology',
+    'health research',
+    'digital health',
+    'medical breakthrough',
+    'healthcare startup'
+  ],
   ai: [
     'artificial intelligence',
     'machine learning',
     'GPT AI',
     'OpenAI',
     'DeepMind',
-    'Anthropic'
-  ],
-  robotics: [
-    'robotics',
-    'robot technology',
-    'Boston Dynamics',
-    'industrial robotics',
-    'autonomous robots',
-    'automation'
-  ],
-  biotech: [
-    'biotechnology',
-    'CRISPR',
-    'gene editing',
-    'synthetic biology',
-    'biotech innovation',
-    'pharmaceutical research'
+    'AI innovation'
   ]
 };
 

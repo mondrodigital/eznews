@@ -4,7 +4,7 @@ import { NewsAPIArticle, fetchNews } from './news';
 import { selectMostIntriguingArticle, rewriteArticle } from './gpt';
 import { storeTimeBlock } from './storage';
 
-const CATEGORIES: Category[] = ['ai', 'robotics', 'biotech'];
+const CATEGORIES: Category[] = ['tech', 'health', 'science', 'ai'];
 
 async function processCategory(category: Category): Promise<NewsItem[]> {
   console.log(`\nProcessing ${category} category...`);
