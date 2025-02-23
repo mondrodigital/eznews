@@ -2,11 +2,23 @@ import { TimeBlock, TimeSlot, NewsItem } from './types';
 import { isBrowser } from './client-env';
 
 const TTL = 24 * 60 * 60; // 24 hours in seconds
-const CACHE_VERSION = Date.now(); // Use timestamp as cache version
+
+// Get today's date in YYYY-MM-DD format
+function getTodayKey(): string {
+  const now = new Date();
+  return now.toISOString().split('T')[0];
+}
 
 // Storage key helper
 function getStorageKey(timeSlot: TimeSlot): string {
-  return `news:${CACHE_VERSION}:${timeSlot}`;
+  const today = getTodayKey();
+  return `news:${today}:${timeSlot}`;
+}
+
+// Get the daily cache key
+function getDailyCacheKey(): string {
+  const today = getTodayKey();
+  return `news:${today}:daily`;
 }
 
 // Storage implementation
@@ -71,11 +83,12 @@ const storage = {
 export async function clearNewsCache() {
   if (!isBrowser) return;
   
+  const today = getTodayKey();
   console.log('Clearing news cache...');
   const keys = [];
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i);
-    if (key && key.startsWith('news:')) {
+    if (key && key.startsWith(`news:${today}`)) {
       keys.push(key);
     }
   }
@@ -86,6 +99,16 @@ export async function clearNewsCache() {
   });
   
   console.log(`Cleared ${keys.length} cache entries`);
+}
+
+export async function storeDailyNews(stories: NewsItem[]): Promise<void> {
+  const key = getDailyCacheKey();
+  await storage.set(key, stories, TTL);
+}
+
+export async function getDailyNews(): Promise<NewsItem[] | null> {
+  const key = getDailyCacheKey();
+  return await storage.get(key);
 }
 
 export async function storeTimeBlock(timeSlot: TimeSlot, stories: NewsItem[]): Promise<void> {
@@ -127,4 +150,14 @@ export function isTimeSlotAvailable(timeSlot: TimeSlot): boolean {
     default:
       return false;
   }
+}
+
+// Check if we need to fetch fresh news
+export function shouldFetchFreshNews(): boolean {
+  const now = new Date();
+  const hour = now.getHours();
+  const minute = now.getMinutes();
+  
+  // Fetch fresh news at 5 AM
+  return hour === 5 && minute >= 0 && minute <= 15;
 } 

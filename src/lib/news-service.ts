@@ -2,7 +2,7 @@ import { NewsItem, TimeSlot, TimeBlock } from './types';
 import OpenAI from 'openai';
 
 // In production, API requests will be made to the same domain
-const API_URL = import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:3000');
+const API_URL = '';  // Empty string means same domain, which works for both dev and prod
 
 console.log('Environment check:', {
   hasNewsApiKey: !!import.meta.env.VITE_NEWS_API_KEY,

@@ -1,6 +1,6 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { Category, CATEGORIES, TimeSlot, Story } from './types';
-import { CATEGORY_QUERIES } from '../src/lib/news';
+import { CATEGORY_QUERIES } from './lib/constants';
 
 // CORS headers
 const CORS_HEADERS = {
@@ -39,11 +39,15 @@ async function fetchCategoryNews(category: Category): Promise<Story[]> {
   const query = queries[Math.floor(Math.random() * queries.length)];
   
   try {
+    if (!process.env.NEWS_API_KEY) {
+      throw new Error('NEWS_API_KEY is not set');
+    }
+
     const response = await fetch(
       `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&language=en&sortBy=publishedAt&pageSize=5`,
       {
         headers: {
-          'Authorization': `Bearer ${process.env.NEWS_API_KEY}`
+          'X-Api-Key': process.env.NEWS_API_KEY
         }
       }
     );
@@ -54,15 +58,20 @@ async function fetchCategoryNews(category: Category): Promise<Story[]> {
 
     const data = await response.json();
     
+    if (!Array.isArray(data.articles)) {
+      console.error('Invalid response from News API:', data);
+      return [];
+    }
+
     return data.articles.map((article: any, index: number) => ({
       id: `${category}-${index}-${Date.now()}`,
-      timestamp: new Date(article.publishedAt).toISOString(),
+      timestamp: new Date(article.publishedAt),
       category,
-      headline: article.title,
-      content: article.description,
-      source: article.source.name,
-      image: article.urlToImage,
-      originalUrl: article.url
+      headline: article.title || 'No headline available',
+      content: article.description || 'No content available',
+      source: article.source?.name || 'Unknown source',
+      image: article.urlToImage || `https://placehold.co/600x400?text=${category}+News`,
+      originalUrl: article.url || '#'
     }));
   } catch (error) {
     console.error(`Error fetching news for category ${category}:`, error);
@@ -75,8 +84,13 @@ async function fetchDailyNews(): Promise<Story[]> {
   const allStories: Story[] = [];
   
   for (const category of CATEGORIES) {
-    const stories = await fetchCategoryNews(category);
-    allStories.push(...stories);
+    try {
+      const stories = await fetchCategoryNews(category);
+      allStories.push(...stories);
+    } catch (error) {
+      console.error(`Error fetching ${category} news:`, error);
+      // Continue with other categories even if one fails
+    }
   }
   
   // Update cache
@@ -116,6 +130,9 @@ export default async function handler(
     res.setHeader(key, value);
   });
 
+  // Set content type to JSON
+  res.setHeader('Content-Type', 'application/json');
+
   // Handle OPTIONS request
   if (req.method === 'OPTIONS') {
     res.status(200).end();
@@ -124,7 +141,10 @@ export default async function handler(
 
   // Only allow GET requests
   if (req.method !== 'GET') {
-    res.status(405).json({ error: 'Method not allowed' });
+    res.status(405).json({
+      status: 'error',
+      error: 'Method not allowed'
+    });
     return;
   }
 
@@ -137,7 +157,10 @@ export default async function handler(
     // Validate time slot
     const timeSlot = req.query.timeSlot as TimeSlot;
     if (!timeSlot || !['10AM', '3PM', '8PM'].includes(timeSlot)) {
-      res.status(400).json({ error: 'Invalid time slot' });
+      res.status(400).json({
+        status: 'error',
+        error: 'Invalid time slot'
+      });
       return;
     }
 
@@ -153,22 +176,39 @@ export default async function handler(
       await fetchDailyNews();
     }
 
+    // Ensure we have news to distribute
+    if (!dailyNewsCache || dailyNewsCache.length === 0) {
+      res.status(500).json({
+        status: 'error',
+        error: 'No news available'
+      });
+      return;
+    }
+
     // Distribute stories for the requested time slot
-    const stories = distributeStories(dailyNewsCache || [], timeSlot);
+    const stories = distributeStories(dailyNewsCache, timeSlot);
+
+    // Format timestamps to ensure they're serializable
+    const formattedStories = stories.map(story => ({
+      ...story,
+      timestamp: story.timestamp.toISOString()
+    }));
 
     // Return the response
     res.status(200).json({
+      status: 'success',
       timeSlot,
       date: new Date().toLocaleDateString('en-US', {
         day: 'numeric',
         month: 'numeric',
         year: '2-digit'
       }).replace(/\//g, ' '),
-      stories
+      stories: formattedStories
     });
   } catch (error) {
     console.error('API Error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
+      status: 'error',
       error: 'Internal server error',
       message: error instanceof Error ? error.message : 'Unknown error'
     });

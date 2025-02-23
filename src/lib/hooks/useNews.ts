@@ -29,10 +29,16 @@ export function useNews(timeSlot: TimeSlot) {
         const response = await fetch(apiUrl);
         console.log('API Response status:', response.status);
         
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Failed to parse error response' }));
+          throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+        }
+        
+        const text = await response.text();
+        console.log('API Response text:', text);
+        
         let data;
         try {
-          const text = await response.text();
-          console.log('API Response text:', text);
           data = JSON.parse(text);
         } catch (e) {
           console.error('Failed to parse API response:', e);
@@ -43,37 +49,27 @@ export function useNews(timeSlot: TimeSlot) {
         
         if (!mounted) return;
 
-        if (data.status === 'error' || response.status !== 200) {
-          console.error('API returned error:', data.error, data.details);
-          throw new Error(data.details || data.error || 'Failed to load news');
+        if (data.status === 'error') {
+          throw new Error(data.error || data.message || 'Unknown error');
         }
 
-        // Verify we have fresh stories
-        if (data.stories?.length) {
-          const now = new Date();
-          const storyDates = data.stories.map((s: any) => new Date(s.timestamp));
-          const oldestStory = Math.min(...storyDates.map((d: Date) => d.getTime()));
-          const hoursSinceOldest = (now.getTime() - oldestStory) / (1000 * 60 * 60);
-          
-          console.log('Story freshness check:', {
-            now: now.toISOString(),
-            oldestStory: new Date(oldestStory).toISOString(),
-            hoursSinceOldest
-          });
-          
-          if (hoursSinceOldest > 48) {
-            console.warn('Stories are older than 48 hours, retrying fetch...');
-            throw new Error('Stories are too old');
-          }
+        if (!data.stories || !Array.isArray(data.stories)) {
+          throw new Error('Invalid response format: missing or invalid stories array');
         }
+
+        // Convert ISO strings back to Date objects
+        const stories = data.stories.map((story: any) => ({
+          ...story,
+          timestamp: new Date(story.timestamp)
+        }));
 
         setTimeBlock({
           time: timeSlot,
           date: data.date,
-          stories: data.stories || []
+          stories
         });
 
-        if (!data.stories?.length) {
+        if (stories.length === 0) {
           setError('No news available for this time slot');
         } else {
           setError(null);

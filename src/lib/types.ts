@@ -1,8 +1,5 @@
 export * from '../../api/types';
-
-export type Category = 'tech' | 'finance' | 'science' | 'health' | 'ai';
-
-export type TimeSlot = '10AM' | '3PM' | '8PM';
+import { Category, TimeSlot } from '../../api/types';
 
 export interface NewsItem {
   id: string;
