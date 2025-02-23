@@ -429,9 +429,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { timeSlot } = req.query;
+    const { timeSlot, force } = req.query;
     console.log('Request:', {
       timeSlot,
+      force,
       currentHour: new Date().getHours()
     });
 
@@ -443,46 +444,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    const cacheKey = getCacheKey();
-    console.log('Cache key:', cacheKey);
+    // Force fresh fetch of news
+    console.log('Fetching fresh news...');
+    const articles = await fetchAndProcessDailyNews();
     
-    // Try to get today's news from cache
-    let dailyNews = await getCachedData(cacheKey);
-    console.log('Cache status:', {
-      hasCachedNews: !!dailyNews,
-      hasArticles: !!(dailyNews?.articles),
-      articleCounts: dailyNews?.articles ? {
-        '10AM': dailyNews.articles['10AM']?.length || 0,
-        '3PM': dailyNews.articles['3PM']?.length || 0,
-        '8PM': dailyNews.articles['8PM']?.length || 0
-      } : null
-    });
-
-    // If no cached news, fetch and process new news
-    if (!dailyNews || !dailyNews.articles) {
-      console.log('Fetching fresh news');
-      // Fetch and process all news for today
-      const articles = await fetchAndProcessDailyNews();
-      
-      dailyNews = {
-        date: getTodayKey(),
-        articles,
-        lastUpdated: new Date().toISOString()
-      };
-      
-      // Cache the daily news
-      await setCachedData(cacheKey, dailyNews);
-      console.log('Fresh news cached');
-    }
-
-    // Ensure articles object exists and get the requested time slot's articles
-    const articles = dailyNews.articles || {
-      '10AM': [],
-      '3PM': [],
-      '8PM': []
+    const dailyNews = {
+      date: getTodayKey(),
+      articles,
+      lastUpdated: new Date().toISOString()
     };
 
-    // Simply return the articles for the requested time slot
+    // Store in cache
+    const cacheKey = getCacheKey();
+    await setCachedData(cacheKey, dailyNews);
+    console.log('Fresh news cached');
+
+    // Return the articles for the requested time slot
     const response = {
       time: timeSlot,
       date: getTodayKey().replace(/-/g, ' '),

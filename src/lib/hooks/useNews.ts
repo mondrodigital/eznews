@@ -16,10 +16,12 @@ export function useNews(timeSlot: TimeSlot) {
         setError(null);
         console.log('useNews: Fetching news for time slot:', timeSlot);
         
-        // Clear cache to force fresh news
+        // Clear client-side cache
         await clearNewsCache();
         
-        const response = await fetch(`/api/news?timeSlot=${timeSlot}&_=${Date.now()}`);
+        // Force fresh fetch with cache busting
+        const timestamp = Date.now();
+        const response = await fetch(`/api/news?timeSlot=${timeSlot}&force=true&_=${timestamp}`);
         console.log('API Response status:', response.status);
         
         const data = await response.json();
@@ -36,6 +38,25 @@ export function useNews(timeSlot: TimeSlot) {
             stories: []
           });
           return;
+        }
+
+        // Verify we have fresh stories
+        if (data.stories?.length) {
+          const now = new Date();
+          const storyDates = data.stories.map((s: any) => new Date(s.timestamp));
+          const oldestStory = Math.min(...storyDates.map((d: Date) => d.getTime()));
+          const hoursSinceOldest = (now.getTime() - oldestStory) / (1000 * 60 * 60);
+          
+          console.log('Story freshness check:', {
+            now: now.toISOString(),
+            oldestStory: new Date(oldestStory).toISOString(),
+            hoursSinceOldest
+          });
+          
+          if (hoursSinceOldest > 48) {
+            console.warn('Stories are older than 48 hours, retrying fetch...');
+            throw new Error('Stories are too old');
+          }
         }
 
         setTimeBlock({
