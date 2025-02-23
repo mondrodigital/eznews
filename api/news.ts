@@ -521,49 +521,50 @@ if (missingEnvVars.length > 0) {
 
 // Update the handler to check environment variables first
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  console.log('Environment check:', {
-    NODE_ENV: process.env.NODE_ENV,
-    VERCEL_ENV: process.env.VERCEL_ENV,
-    isDev: isDevelopment(),
-    hasNewsApiKey: !!process.env.NEWS_API_KEY,
-    hasOpenAiKey: !!process.env.OPENAI_API_KEY,
-    hasUnsplashKey: !!process.env.UNSPLASH_ACCESS_KEY
-  });
-
-  // Enable CORS
-  await new Promise((resolve, reject) => {
-    cors()(req, res, (result) => {
-      if (result instanceof Error) {
-        return reject(result);
-      }
-      return resolve(result);
-    });
-  });
-
-  // Check for missing environment variables
-  if (missingEnvVars.length > 0) {
-    return res.status(500).json({
-      error: 'Server configuration error',
-      details: `Missing environment variables: ${missingEnvVars.join(', ')}`,
-      status: 'error',
-      stories: [],
-      time: req.query.timeSlot as string || null,
-      date: getTodayKey().replace(/-/g, ' ')
-    });
-  }
-
-  // Only allow GET requests
-  if (req.method !== 'GET') {
-    return res.status(405).json({ 
-      error: 'Method not allowed',
-      status: 'error',
-      stories: [],
-      time: null,
-      date: getTodayKey().replace(/-/g, ' ')
-    });
-  }
-
   try {
+    // Enable CORS
+    await new Promise((resolve, reject) => {
+      cors()(req, res, (result) => {
+        if (result instanceof Error) {
+          return reject(result);
+        }
+        return resolve(result);
+      });
+    });
+
+    console.log('Environment check:', {
+      NODE_ENV: process.env.NODE_ENV,
+      VERCEL_ENV: process.env.VERCEL_ENV,
+      isDev: isDevelopment(),
+      hasNewsApiKey: !!process.env.NEWS_API_KEY,
+      hasOpenAiKey: !!process.env.OPENAI_API_KEY,
+      hasUnsplashKey: !!process.env.UNSPLASH_ACCESS_KEY
+    });
+
+    // Check for missing environment variables
+    if (missingEnvVars.length > 0) {
+      console.error('Missing environment variables:', missingEnvVars);
+      return res.status(500).json({
+        error: 'Server configuration error',
+        details: `Missing environment variables: ${missingEnvVars.join(', ')}`,
+        status: 'error',
+        stories: [],
+        time: req.query.timeSlot as string || null,
+        date: getTodayKey().replace(/-/g, ' ')
+      });
+    }
+
+    // Only allow GET requests
+    if (req.method !== 'GET') {
+      return res.status(405).json({ 
+        error: 'Method not allowed',
+        status: 'error',
+        stories: [],
+        time: null,
+        date: getTodayKey().replace(/-/g, ' ')
+      });
+    }
+
     const { timeSlot, force } = req.query;
     console.log('Request:', {
       timeSlot,
@@ -624,7 +625,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       date: getTodayKey()
     });
     
-    return res.status(500).json({ 
+    // Ensure we send a properly formatted JSON response
+    res.status(500).json({ 
       error: 'Failed to fetch news',
       details: errorMessage,
       status: 'error',

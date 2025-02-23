@@ -21,7 +21,9 @@ export function useNews(timeSlot: TimeSlot) {
         
         // Force fresh fetch with cache busting
         const timestamp = Date.now();
-        const response = await fetch(`/api/news?timeSlot=${timeSlot}&force=true&_=${timestamp}`);
+        const baseUrl = import.meta.env.DEV ? 'http://localhost:3000' : '';
+        const response = await fetch(`${baseUrl}/api/news?timeSlot=${timeSlot}&force=true&_=${timestamp}`);
+        
         console.log('API Response status:', response.status);
         
         const text = await response.text();
@@ -32,7 +34,7 @@ export function useNews(timeSlot: TimeSlot) {
           data = JSON.parse(text);
         } catch (e) {
           console.error('Failed to parse API response:', e);
-          throw new Error('Invalid response from server');
+          throw new Error(`Invalid response from server: ${text}`);
         }
         
         console.log('API Response data:', data);
@@ -41,17 +43,7 @@ export function useNews(timeSlot: TimeSlot) {
 
         if (data.status === 'error' || response.status !== 200) {
           console.error('API returned error:', data.error, data.details);
-          setError(data.error || 'Failed to load news');
-          setTimeBlock({
-            time: timeSlot,
-            date: data.date || new Date().toLocaleDateString('en-US', { 
-              day: 'numeric', 
-              month: 'numeric', 
-              year: '2-digit'
-            }).replace(/\//g, ' '),
-            stories: []
-          });
-          return;
+          throw new Error(data.details || data.error || 'Failed to load news');
         }
 
         // Verify we have fresh stories
