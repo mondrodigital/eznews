@@ -2,7 +2,7 @@ import { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import cors from 'cors';
 import OpenAI from 'openai';
-import { Category, CATEGORIES } from '../src/lib/types';
+import { Category, CATEGORIES } from './types';
 
 const NEWS_API_KEY = process.env.NEWS_API_KEY;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;

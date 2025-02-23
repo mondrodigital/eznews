@@ -1,10 +1,10 @@
-export * from '../../api/types';
-
 export type Category = 'tech' | 'finance' | 'science' | 'health' | 'ai';
+
+export const CATEGORIES = ['tech', 'finance', 'science', 'health', 'ai'] as const;
 
 export type TimeSlot = '10AM' | '3PM' | '8PM';
 
-export interface NewsItem {
+export interface Story {
   id: string;
   timestamp: Date;
   category: Category;
@@ -18,9 +18,5 @@ export interface NewsItem {
 export interface TimeBlock {
   time: TimeSlot;
   date: string;
-  stories: NewsItem[];
-}
-
-export const TIME_SLOTS = ['10AM', '3PM', '8PM'] as const;
-
-export const CATEGORIES = ['tech', 'finance', 'science', 'health', 'ai'] as const; 
+  stories: Story[];
+} 
