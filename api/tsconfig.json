@@ -9,7 +9,11 @@
     "forceConsistentCasingInFileNames": true,
     "isolatedModules": true,
     "allowJs": true,
-    "outDir": "../dist/api"
+    "outDir": "../dist/api",
+    "baseUrl": ".",
+    "paths": {
+      "*": ["*", "../src/*"]
+    }
   },
   "include": ["./**/*.ts"],
   "exclude": ["node_modules"]
