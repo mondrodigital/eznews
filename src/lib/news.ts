@@ -24,25 +24,38 @@ const CATEGORY_QUERIES: Record<Category, string[]> = {
     'Anthropic'
   ],
   robotics: [
-    'robotics technology',
-    'automation systems',
+    'robotics',
+    'robot technology',
     'Boston Dynamics',
-    'industrial robots',
+    'industrial robotics',
     'autonomous robots',
-    'Tesla automation'
+    'automation'
   ],
   biotech: [
     'biotechnology',
-    'CRISPR technology',
+    'CRISPR',
     'gene editing',
     'synthetic biology',
-    'biotech research',
-    'Moderna technology'
+    'biotech innovation',
+    'pharmaceutical research'
   ]
 };
 
+function getDateRange() {
+  const end = new Date();
+  const start = new Date();
+  start.setDate(start.getDate() - 2); // Get news from the last 2 days
+  
+  return {
+    from: start.toISOString().split('T')[0],
+    to: end.toISOString().split('T')[0]
+  };
+}
+
 export async function fetchNews(): Promise<NewsAPIArticle[]> {
   try {
+    const dates = getDateRange();
+    
     // Fetch news for each category in parallel
     const categoryPromises = Object.entries(CATEGORY_QUERIES).map(async ([category, queries]) => {
       // Use the first query as main search term, others as optional
@@ -53,8 +66,10 @@ export async function fetchNews(): Promise<NewsAPIArticle[]> {
       url.searchParams.append('apiKey', import.meta.env.VITE_NEWS_API_KEY);
       url.searchParams.append('q', `"${mainQuery}" ${optionalQueries}`);
       url.searchParams.append('language', 'en');
-      url.searchParams.append('sortBy', 'relevancy');
-      url.searchParams.append('pageSize', '10');
+      url.searchParams.append('sortBy', 'publishedAt');
+      url.searchParams.append('pageSize', '5'); // Get 5 stories per category
+      url.searchParams.append('from', dates.from);
+      url.searchParams.append('to', dates.to);
       
       console.log(`Fetching ${category} news with query:`, url.searchParams.get('q'));
       
@@ -81,7 +96,8 @@ export async function fetchNews(): Promise<NewsAPIArticle[]> {
       total: articles.length,
       ai: articles.filter(a => a.category === 'ai').length,
       robotics: articles.filter(a => a.category === 'robotics').length,
-      biotech: articles.filter(a => a.category === 'biotech').length
+      biotech: articles.filter(a => a.category === 'biotech').length,
+      dateRange: dates
     });
 
     return articles;

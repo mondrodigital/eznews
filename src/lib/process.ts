@@ -6,7 +6,7 @@ import { storeTimeBlock } from './storage';
 
 const CATEGORIES: Category[] = ['ai', 'robotics', 'biotech'];
 
-async function processCategory(category: Category): Promise<NewsItem> {
+async function processCategory(category: Category): Promise<NewsItem[]> {
   console.log(`\nProcessing ${category} category...`);
   
   // Fetch all articles
@@ -19,31 +19,32 @@ async function processCategory(category: Category): Promise<NewsItem> {
     throw new Error(`No articles found for category: ${category}`);
   }
   
-  // Select the most intriguing article
-  console.log('Selecting most intriguing article...');
-  const { article, reason } = await selectMostIntriguingArticle(categoryArticles);
-  console.log('Selected article:', article.title);
-  console.log('Selection reason:', reason);
+  // Process each article in parallel
+  const processedArticles = await Promise.all(
+    categoryArticles.map(async (article) => {
+      console.log('Processing article:', article.title);
+      
+      // Rewrite the article
+      const { headline, content } = await rewriteArticle(article, category);
+      
+      // Use the article's image or a default placeholder
+      const image = article.urlToImage || `https://placehold.co/600x400?text=${category}+News`;
+      
+      return {
+        id: uuidv4(),
+        timestamp: new Date(article.publishedAt),
+        category,
+        headline,
+        content,
+        source: article.source.name,
+        image,
+        originalUrl: article.url
+      };
+    })
+  );
   
-  // Rewrite the article
-  console.log('Rewriting article...');
-  const { headline, content } = await rewriteArticle(article, category);
-  
-  // Use the article's image or a default placeholder
-  const image = article.urlToImage || `https://placehold.co/600x400?text=${category}+News`;
-  
-  console.log('Processed article:', headline);
-  
-  return {
-    id: uuidv4(),
-    timestamp: new Date(),
-    category,
-    headline,
-    content,
-    source: article.source.name,
-    image,
-    originalUrl: article.url
-  };
+  console.log(`Processed ${processedArticles.length} articles for ${category}`);
+  return processedArticles;
 }
 
 export async function processTimeSlot(timeSlot: TimeSlot): Promise<void> {
@@ -58,8 +59,9 @@ export async function processTimeSlot(timeSlot: TimeSlot): Promise<void> {
       })
     );
     
-    const stories = await Promise.all(storiesPromises);
-    console.log(`\nSuccessfully processed ${stories.length} stories`);
+    const categoryStories = await Promise.all(storiesPromises);
+    const stories = categoryStories.flat();
+    console.log(`\nSuccessfully processed ${stories.length} stories total`);
     
     // Store the processed stories
     console.log('Storing time block...');

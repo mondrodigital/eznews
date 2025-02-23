@@ -8,8 +8,8 @@ console.log('App initializing...');
 
 const categories = [
   { id: 'all', name: 'All', emoji: '🗞️' },
-  { id: 'ai', name: 'AI & ML', emoji: '🤖' },
-  { id: 'robotics', name: 'Robotics & Automation', emoji: '🦾' },
+  { id: 'ai', name: 'AI', emoji: '🤖' },
+  { id: 'robotics', name: 'Robotics', emoji: '🦾' },
   { id: 'biotech', name: 'Biotech', emoji: '🧬' }
 ];
 
