@@ -503,12 +503,31 @@ function setMemoryCachedData(key: string, data: any) {
   });
 }
 
-// Update the handler to include better error handling and logging
+// Add environment variable validation at the top
+const requiredEnvVars = {
+  NEWS_API_KEY: process.env.NEWS_API_KEY,
+  OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+  UNSPLASH_ACCESS_KEY: process.env.UNSPLASH_ACCESS_KEY
+};
+
+// Validate environment variables
+const missingEnvVars = Object.entries(requiredEnvVars)
+  .filter(([_, value]) => !value)
+  .map(([key]) => key);
+
+if (missingEnvVars.length > 0) {
+  console.error('Missing required environment variables:', missingEnvVars);
+}
+
+// Update the handler to check environment variables first
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  console.log('Environment:', {
+  console.log('Environment check:', {
     NODE_ENV: process.env.NODE_ENV,
     VERCEL_ENV: process.env.VERCEL_ENV,
-    isDev: isDevelopment()
+    isDev: isDevelopment(),
+    hasNewsApiKey: !!process.env.NEWS_API_KEY,
+    hasOpenAiKey: !!process.env.OPENAI_API_KEY,
+    hasUnsplashKey: !!process.env.UNSPLASH_ACCESS_KEY
   });
 
   // Enable CORS
@@ -520,6 +539,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return resolve(result);
     });
   });
+
+  // Check for missing environment variables
+  if (missingEnvVars.length > 0) {
+    return res.status(500).json({
+      error: 'Server configuration error',
+      details: `Missing environment variables: ${missingEnvVars.join(', ')}`,
+      status: 'error',
+      stories: [],
+      time: req.query.timeSlot as string || null,
+      date: getTodayKey().replace(/-/g, ' ')
+    });
+  }
 
   // Only allow GET requests
   if (req.method !== 'GET') {
