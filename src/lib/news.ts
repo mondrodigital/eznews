@@ -14,9 +14,9 @@ export interface NewsAPIArticle {
 }
 
 // Define search queries for each category
-const CATEGORY_QUERIES: Record<Category, string[]> = {
+export const CATEGORY_QUERIES: Record<Category, string[]> = {
   tech: [
-    'technology',
+    'technology innovation',
     'tech startup',
     'software development',
     'digital technology',

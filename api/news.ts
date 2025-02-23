@@ -1,654 +1,176 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { createClient } from '@supabase/supabase-js';
-import cors from 'cors';
-import OpenAI from 'openai';
 import { Category, CATEGORIES, TimeSlot, Story } from './types';
+import { CATEGORY_QUERIES } from '../src/lib/news';
 
-const NEWS_API_KEY = process.env.NEWS_API_KEY;
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY;
+// CORS headers
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+};
 
-const CACHE_TTL = 24 * 60 * 60; // 24 hours in seconds
+// Cache for daily news
+let dailyNewsCache: Story[] | null = null;
+let lastFetchDate: string | null = null;
 
-if (!SUPABASE_URL || !SUPABASE_KEY) {
-  console.error('Missing Supabase configuration');
+// Get today's date in YYYY-MM-DD format
+function getTodayKey(): string {
+  const now = new Date();
+  return now.toISOString().split('T')[0];
 }
 
-const supabase = createClient(SUPABASE_URL || '', SUPABASE_KEY || '');
-
-console.log('Server environment check:', {
-  hasNewsApiKey: !!NEWS_API_KEY,
-  hasOpenAiKey: !!OPENAI_API_KEY,
-  hasSupabaseConfig: !!SUPABASE_URL && !!SUPABASE_KEY
-});
-
-const openai = new OpenAI({
-  apiKey: OPENAI_API_KEY
-});
-
-// Add type definition at the top of the file
-interface NewsAPIArticle {
-  title: string;
-  description?: string;
-  content?: string;
-  publishedAt: string;
-  source: {
-    name: string;
-  };
-  urlToImage?: string;
-  url: string;
-  category?: string;
-}
-
-// Add function to get the current time slot
-function getCurrentTimeSlot(): TimeSlot {
-  const hour = new Date().getHours();
-  if (hour >= 20) return '8PM';
-  if (hour >= 15) return '3PM';
-  return '10AM';
-}
-
-// Add function to check if we're in development
-function isDevelopment(): boolean {
-  return process.env.NODE_ENV === 'development' || process.env.VERCEL_ENV === 'development' || !!process.env.DEV;
-}
-
-// Update the time slot availability check
-function isTimeSlotAvailable(timeSlot: TimeSlot): boolean {
-  // In development, all time slots are available
-  if (isDevelopment()) {
+// Check if we need to fetch fresh news
+function shouldFetchFreshNews(): boolean {
+  if (!lastFetchDate || lastFetchDate !== getTodayKey()) {
     return true;
   }
+  return false;
+}
 
-  const hour = new Date().getHours();
+// Fetch news for a specific category
+async function fetchCategoryNews(category: Category): Promise<Story[]> {
+  const queries = CATEGORY_QUERIES[category];
+  if (!queries || !queries.length) {
+    console.warn(`No search queries defined for category: ${category}`);
+    return [];
+  }
+
+  // Randomly select a query for this category
+  const query = queries[Math.floor(Math.random() * queries.length)];
   
-  switch (timeSlot) {
-    case '10AM':
-      return hour >= 10;
-    case '3PM':
-      return hour >= 15;
-    case '8PM':
-      return hour >= 20;
-    default:
-      return false;
-  }
-}
-
-// Add function to get today's date key
-function getTodayKey(): string {
-  return new Date().toLocaleDateString('en-US', { 
-    day: 'numeric', 
-    month: 'numeric', 
-    year: '2-digit'
-  }).replace(/\//g, '-');
-}
-
-// Add function to distribute articles across time slots
-function distributeArticlesToTimeSlots(articles: NewsAPIArticle[]): Map<TimeSlot, NewsAPIArticle[]> {
-  const distribution = new Map<TimeSlot, NewsAPIArticle[]>();
-  const timeSlots: TimeSlot[] = ['10AM', '3PM', '8PM'];
-  timeSlots.forEach(slot => distribution.set(slot, []));
-
-  // Sort articles by publishedAt
-  const sortedArticles = [...articles].sort((a, b) => 
-    new Date(a.publishedAt).getTime() - new Date(b.publishedAt).getTime()
-  );
-
-  // Distribute articles evenly across time slots
-  sortedArticles.forEach((article, index) => {
-    const slot = timeSlots[index % timeSlots.length];
-    distribution.get(slot)?.push(article);
-  });
-
-  return distribution;
-}
-
-// Update the cache key function to be more reliable
-function getCacheKey(timeSlot?: string): string {
-  const date = new Date().toLocaleDateString('en-US', { 
-    day: 'numeric', 
-    month: 'numeric', 
-    year: '2-digit'
-  }).replace(/\//g, '-');
-  
-  return timeSlot ? `news:${date}:${timeSlot}` : `news:${date}`;
-}
-
-// Add memory cache as fallback
-const memoryCache = new Map<string, { data: any; timestamp: number }>();
-
-// Update the determineCategory function
-function determineCategory(article: NewsAPIArticle): Category | null {
-  const categoryKeywords: Record<Category, string[]> = {
-    tech: [
-      'technology',
-      'software',
-      'digital',
-      'tech',
-      'computing',
-      'internet'
-    ],
-    finance: [
-      'finance',
-      'business',
-      'market',
-      'investment',
-      'venture capital',
-      'startup funding'
-    ],
-    science: [
-      'science',
-      'research',
-      'discovery',
-      'quantum',
-      'space',
-      'physics'
-    ],
-    health: [
-      'health',
-      'medical',
-      'healthcare',
-      'medicine',
-      'biomedical',
-      'clinical'
-    ],
-    ai: [
-      'artificial intelligence',
-      'machine learning',
-      'deep learning',
-      'neural network',
-      'ai model',
-      'gpt'
-    ]
-  };
-
-  const text = `${article.title} ${article.description || ''} ${article.content || ''}`.toLowerCase();
-
-  // First try exact category matches if the article has a category
-  if (article.category) {
-    const normalizedCategory = article.category.toLowerCase();
-    for (const [category, keywords] of Object.entries(categoryKeywords)) {
-      if (keywords.some(keyword => normalizedCategory.includes(keyword))) {
-        return category as Category;
-      }
-    }
-  }
-
-  // Then try keyword matching in the full text
-  for (const [category, keywords] of Object.entries(categoryKeywords)) {
-    if (keywords.some(keyword => text.includes(keyword))) {
-      return category as Category;
-    }
-  }
-
-  return null;
-}
-
-// Helper function to get search queries for each category
-function getCategoryQueries(category: Category): string[] {
-  switch (category) {
-    case 'tech':
-      return [
-        'technology innovation',
-        'tech startup',
-        'software development',
-        'digital technology',
-        'tech industry',
-        'emerging technology'
-      ];
-    case 'finance':
-      return [
-        'business finance',
-        'stock market',
-        'financial technology',
-        'investment news',
-        'venture capital',
-        'startup funding'
-      ];
-    case 'science':
-      return [
-        'scientific discovery',
-        'research breakthrough',
-        'space exploration',
-        'quantum computing',
-        'scientific innovation',
-        'research development'
-      ];
-    case 'health':
-      return [
-        'healthcare innovation',
-        'medical technology',
-        'health research',
-        'digital health',
-        'medical breakthrough',
-        'healthcare startup'
-      ];
-    case 'ai':
-      return [
-        'artificial intelligence',
-        'machine learning',
-        'GPT AI',
-        'OpenAI',
-        'DeepMind',
-        'AI innovation'
-      ];
-  }
-}
-
-async function fetchAndProcessDailyNews() {
-  if (!NEWS_API_KEY) {
-    throw new Error('NEWS_API_KEY is not configured');
-  }
-
   try {
-    console.log('Fetching daily news');
-    
-    const end = new Date();
-    const start = new Date();
-    start.setDate(start.getDate() - 7);
-    
-    const dateRange = {
-      from: start.toISOString().split('T')[0],
-      to: end.toISOString().split('T')[0]
-    };
-    
-    console.log('Fetching news with date range:', dateRange);
-    
-    // Initialize distribution structure
-    const distribution: Record<TimeSlot, any[]> = {
-      '10AM': [],
-      '3PM': [],
-      '8PM': []
-    };
-    
-    // Fetch categories sequentially to avoid rate limits
-    const allArticles = [];
-    for (const category of CATEGORIES) {
-      try {
-        const queries = getCategoryQueries(category);
-        const queryString = queries.join(' OR ');
-        
-        const url = new URL('https://newsapi.org/v2/everything');
-        url.searchParams.append('apiKey', NEWS_API_KEY);
-        url.searchParams.append('q', queryString);
-        url.searchParams.append('language', 'en');
-        url.searchParams.append('sortBy', 'publishedAt');
-        url.searchParams.append('pageSize', '10'); // Reduced to avoid rate limits
-        url.searchParams.append('from', dateRange.from);
-        url.searchParams.append('to', dateRange.to);
-        
-        console.log(`Fetching ${category} news with query:`, queryString);
-        
-        const response = await fetch(url.toString());
-        
-        if (!response.ok) {
-          const text = await response.text();
-          console.error(`Error fetching ${category} news:`, {
-            status: response.status,
-            statusText: response.statusText,
-            body: text
-          });
-          
-          if (response.status === 429) {
-            console.warn(`Rate limit exceeded for ${category}, skipping...`);
-            continue;
-          }
-          
-          continue; // Skip this category but continue with others
+    const response = await fetch(
+      `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&language=en&sortBy=publishedAt&pageSize=5`,
+      {
+        headers: {
+          'Authorization': `Bearer ${process.env.NEWS_API_KEY}`
         }
-        
-        const data = await response.json();
-        
-        if (data.status === 'error') {
-          console.error(`NewsAPI error for ${category}:`, data.message);
-          continue;
-        }
-
-        const articles = (data.articles || []).map((article: NewsAPIArticle) => ({
-          ...article,
-          category
-        }));
-        
-        console.log(`Received ${articles.length} articles for ${category}`);
-        allArticles.push(...articles);
-        
-        // Add delay between requests
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      } catch (error) {
-        console.error(`Error processing ${category}:`, error);
-        continue; // Skip this category but continue with others
       }
-    }
-    
-    console.log('Total articles fetched:', allArticles.length);
-    
-    // If we have no articles at all, return empty distribution
-    if (allArticles.length === 0) {
-      console.warn('No articles could be fetched from NewsAPI');
-      return distribution;
-    }
-    
-    // Process articles sequentially to avoid OpenAI rate limits
-    const processedArticles: Array<{
-      id: string;
-      timestamp: Date;
-      category: Category;
-      headline: string;
-      content: string;
-      source: string;
-      image: string;
-      originalUrl: string;
-    }> = [];
+    );
 
-    for (const article of allArticles) {
-      try {
-        const processed = await processArticle(article, article.category as Category);
-        if (processed) {
-          processedArticles.push(processed);
-        }
-        // Add delay between OpenAI requests
-        await new Promise(resolve => setTimeout(resolve, 500));
-      } catch (error) {
-        console.error(`Error processing article:`, error);
-        // Use fallback without OpenAI processing
-        processedArticles.push({
-          id: Math.random().toString(36).substring(7),
-          timestamp: new Date(article.publishedAt),
-          category: article.category as Category,
-          headline: article.title,
-          content: article.description || article.content || 'No content available',
-          source: article.source.name,
-          image: article.urlToImage || `https://placehold.co/600x400/2563eb/ffffff?text=${article.category}+News`,
-          originalUrl: article.url
-        });
-      }
+    if (!response.ok) {
+      throw new Error(`News API error: ${response.status} ${response.statusText}`);
     }
 
-    // Distribute articles across time slots
-    const timeSlots: TimeSlot[] = ['10AM', '3PM', '8PM'];
+    const data = await response.json();
     
-    // Ensure even distribution
-    timeSlots.forEach((slot, slotIndex) => {
-      CATEGORIES.forEach(category => {
-        const categoryArticles = processedArticles.filter(a => a.category === category);
-        const start = slotIndex * 2; // 2 articles per category per time slot
-        const end = start + 2;
-        const slotArticles = categoryArticles.slice(start, end);
-        distribution[slot].push(...slotArticles);
-      });
-    });
-
-    return distribution;
-  } catch (error) {
-    console.error('Error in fetchAndProcessDailyNews:', error);
-    // Return empty distribution instead of throwing
-    return {
-      '10AM': [],
-      '3PM': [],
-      '8PM': []
-    };
-  }
-}
-
-// Helper function to process a single article
-async function processArticle(article: NewsAPIArticle, category: Category) {
-  try {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages: [
-        {
-          role: "system",
-          content: "You are a helpful assistant that processes news articles. Take the article and rewrite it in a clear, engaging style while preserving all key information. Format with paragraphs separated by newlines."
-        },
-        {
-          role: "user",
-          content: article.content || article.description || ""
-        }
-      ],
-      max_tokens: 250,
-      temperature: 0.7,
-    });
-
-    return {
-      id: Math.random().toString(36).substring(7),
-      timestamp: new Date(article.publishedAt),
+    return data.articles.map((article: any, index: number) => ({
+      id: `${category}-${index}-${Date.now()}`,
+      timestamp: new Date(article.publishedAt).toISOString(),
       category,
       headline: article.title,
-      content: completion.choices[0]?.message?.content || article.content || article.description || 'No content available',
+      content: article.description,
       source: article.source.name,
-      image: article.urlToImage || `https://placehold.co/600x400/2563eb/ffffff?text=${category}+News`,
+      image: article.urlToImage,
       originalUrl: article.url
-    };
+    }));
   } catch (error) {
-    console.error('Error processing article with OpenAI:', error);
-    throw error;
+    console.error(`Error fetching news for category ${category}:`, error);
+    return [];
   }
 }
 
-async function getCachedData(key: string) {
-  try {
-    // Try Supabase first
-    if (supabase) {
-      const { data, error } = await supabase
-        .from('news_cache')
-        .select('data, created_at')
-        .eq('key', key)
-        .single();
+// Fetch all daily news
+async function fetchDailyNews(): Promise<Story[]> {
+  const allStories: Story[] = [];
+  
+  for (const category of CATEGORIES) {
+    const stories = await fetchCategoryNews(category);
+    allStories.push(...stories);
+  }
+  
+  // Update cache
+  dailyNewsCache = allStories;
+  lastFetchDate = getTodayKey();
+  
+  return allStories;
+}
 
-      if (error) {
-        console.error('Error reading from Supabase:', error);
-        // Fall back to memory cache
-        return getMemoryCachedData(key);
-      }
-
-      if (!data) return null;
-
-      // Check if cache is expired (24 hours)
-      const created = new Date(data.created_at);
-      const now = new Date();
-      if ((now.getTime() - created.getTime()) > (CACHE_TTL * 1000)) {
-        // Delete expired cache
-        await supabase.from('news_cache').delete().eq('key', key);
-        return null;
-      }
-
-      return data.data;
-    }
-
-    // If no Supabase, use memory cache
-    return getMemoryCachedData(key);
-  } catch (error) {
-    console.error('Error reading from Supabase:', error);
-    // Fall back to memory cache
-    return getMemoryCachedData(key);
+// Distribute stories across time slots
+function distributeStories(stories: Story[], timeSlot: TimeSlot): Story[] {
+  // Sort stories by timestamp
+  const sortedStories = [...stories].sort((a, b) => 
+    new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+  );
+  
+  // Get a subset of stories based on time slot
+  const storiesPerSlot = Math.ceil(stories.length / 3);
+  switch (timeSlot) {
+    case '10AM':
+      return sortedStories.slice(0, storiesPerSlot);
+    case '3PM':
+      return sortedStories.slice(storiesPerSlot, storiesPerSlot * 2);
+    case '8PM':
+      return sortedStories.slice(storiesPerSlot * 2);
+    default:
+      return [];
   }
 }
 
-function getMemoryCachedData(key: string) {
-  const entry = memoryCache.get(key);
-  if (!entry) return null;
-
-  // Check if cache is expired
-  if (Date.now() - entry.timestamp > CACHE_TTL * 1000) {
-    memoryCache.delete(key);
-    return null;
-  }
-
-  return entry.data;
-}
-
-async function setCachedData(key: string, data: any) {
-  try {
-    // Try to cache in Supabase
-    if (supabase) {
-      // Delete any existing cache for this key
-      await supabase.from('news_cache').delete().eq('key', key);
-
-      // Insert new cache data
-      const { error } = await supabase.from('news_cache').insert({
-        key,
-        data,
-        created_at: new Date().toISOString()
-      });
-
-      if (error) {
-        console.error('Error writing to Supabase:', error);
-        // Fall back to memory cache
-        setMemoryCachedData(key, data);
-      }
-    } else {
-      // If no Supabase, use memory cache
-      setMemoryCachedData(key, data);
-    }
-  } catch (error) {
-    console.error('Error writing to Supabase:', error);
-    // Fall back to memory cache
-    setMemoryCachedData(key, data);
-  }
-}
-
-function setMemoryCachedData(key: string, data: any) {
-  memoryCache.set(key, {
-    data,
-    timestamp: Date.now()
-  });
-}
-
-// Add environment variable validation at the top
-const requiredEnvVars = {
-  NEWS_API_KEY: process.env.NEWS_API_KEY,
-  OPENAI_API_KEY: process.env.OPENAI_API_KEY
-};
-
-// Optional environment variables
-const optionalEnvVars = {
-  UNSPLASH_ACCESS_KEY: process.env.UNSPLASH_ACCESS_KEY
-};
-
-// Validate environment variables
-const missingEnvVars = Object.entries(requiredEnvVars)
-  .filter(([_, value]) => !value)
-  .map(([key]) => key);
-
-if (missingEnvVars.length > 0) {
-  console.error('Missing required environment variables:', missingEnvVars);
-}
-
-// Update the handler to check environment variables first
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(
+  req: VercelRequest,
+  res: VercelResponse
+) {
   // Set CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  res.setHeader('Content-Type', 'application/json');
+  Object.entries(CORS_HEADERS).forEach(([key, value]) => {
+    res.setHeader(key, value);
+  });
 
   // Handle OPTIONS request
   if (req.method === 'OPTIONS') {
-    return res.status(200).json({ status: 'ok' });
+    res.status(200).end();
+    return;
+  }
+
+  // Only allow GET requests
+  if (req.method !== 'GET') {
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
   }
 
   try {
-    console.log('Environment check:', {
-      NODE_ENV: process.env.NODE_ENV,
-      VERCEL_ENV: process.env.VERCEL_ENV,
-      isDev: isDevelopment(),
-      hasNewsApiKey: !!process.env.NEWS_API_KEY,
-      hasOpenAiKey: !!process.env.OPENAI_API_KEY,
-      hasUnsplashKey: !!process.env.UNSPLASH_ACCESS_KEY
-    });
-
-    // Check for missing environment variables
-    if (missingEnvVars.length > 0) {
-      console.error('Missing environment variables:', missingEnvVars);
-      return res.status(500).json({
-        error: 'Server configuration error',
-        details: `Missing environment variables: ${missingEnvVars.join(', ')}`,
-        status: 'error',
-        stories: [],
-        time: req.query.timeSlot as string || null,
-        date: getTodayKey().replace(/-/g, ' ')
-      });
+    // Check for API key
+    if (!process.env.NEWS_API_KEY) {
+      throw new Error('NEWS_API_KEY environment variable is not set');
     }
 
-    // Only allow GET requests
-    if (req.method !== 'GET') {
-      return res.status(405).json({ 
-        error: 'Method not allowed',
-        status: 'error',
-        stories: [],
-        time: null,
-        date: getTodayKey().replace(/-/g, ' ')
-      });
+    // Validate time slot
+    const timeSlot = req.query.timeSlot as TimeSlot;
+    if (!timeSlot || !['10AM', '3PM', '8PM'].includes(timeSlot)) {
+      res.status(400).json({ error: 'Invalid time slot' });
+      return;
     }
 
-    const { timeSlot, force } = req.query;
-    console.log('Request:', {
+    // Check if we need to fetch fresh news
+    if (shouldFetchFreshNews()) {
+      console.log('Fetching fresh daily news...');
+      await fetchDailyNews();
+    }
+
+    // If we don't have cached news, fetch it
+    if (!dailyNewsCache) {
+      console.log('No cached news found, fetching...');
+      await fetchDailyNews();
+    }
+
+    // Distribute stories for the requested time slot
+    const stories = distributeStories(dailyNewsCache || [], timeSlot);
+
+    // Return the response
+    res.status(200).json({
       timeSlot,
-      force,
-      currentHour: new Date().getHours()
+      date: new Date().toLocaleDateString('en-US', {
+        day: 'numeric',
+        month: 'numeric',
+        year: '2-digit'
+      }).replace(/\//g, ' '),
+      stories
     });
-
-    if (!timeSlot || !['10AM', '3PM', '8PM'].includes(timeSlot as string)) {
-      return res.status(400).json({ 
-        error: 'Valid time slot is required (10AM, 3PM, or 8PM)',
-        status: 'error',
-        stories: [],
-        time: timeSlot as string || null,
-        date: getTodayKey().replace(/-/g, ' ')
-      });
-    }
-
-    // Force fresh fetch of news
-    console.log('Fetching fresh news...');
-    const articles = await fetchAndProcessDailyNews();
-    
-    const dailyNews = {
-      date: getTodayKey(),
-      articles,
-      lastUpdated: new Date().toISOString()
-    };
-
-    // Store in cache
-    const cacheKey = getCacheKey();
-    await setCachedData(cacheKey, dailyNews);
-    console.log('Fresh news cached');
-
-    // Return the articles for the requested time slot
-    const timeSlotArticles = articles[timeSlot as TimeSlot] || [];
-    console.log(`Found ${timeSlotArticles.length} articles for time slot ${timeSlot}`);
-
-    const response = {
-      time: timeSlot,
-      date: getTodayKey().replace(/-/g, ' '),
-      stories: timeSlotArticles,
-      status: 'success'
-    };
-    
-    console.log('Response:', {
-      time: response.time,
-      date: response.date,
-      storyCount: response.stories.length,
-      status: response.status
-    });
-    
-    return res.status(200).json(response);
   } catch (error) {
     console.error('API Error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.log('Sending error response:', {
-      error: errorMessage,
-      timeSlot: req.query.timeSlot,
-      date: getTodayKey()
-    });
-    
-    return res.status(500).json({ 
-      error: 'Failed to fetch news',
-      details: errorMessage,
-      status: 'error',
-      stories: [],
-      time: req.query.timeSlot as string || null,
-      date: getTodayKey().replace(/-/g, ' ')
+    res.status(500).json({ 
+      error: 'Internal server error',
+      message: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 } 
