@@ -26,7 +26,7 @@ const openai = new OpenAI({
   apiKey: OPENAI_API_KEY
 });
 
-const CATEGORIES = ['tech', 'finance', 'science', 'health'] as const;
+const CATEGORIES = ['ai', 'robotics', 'biotech'] as const;
 
 // Add type definition at the top of the file
 interface NewsAPIArticle {
@@ -245,23 +245,68 @@ async function fetchAndProcessDailyNews() {
 // Update the determineCategory function
 function determineCategory(article: NewsAPIArticle): Category | null {
   const categoryKeywords: Record<Category, string[]> = {
-    tech: ['technology', 'tech', 'software', 'ai', 'digital', 'cyber', 'computing'],
-    finance: ['finance', 'business', 'economy', 'market', 'stock', 'banking'],
-    science: ['science', 'research', 'study', 'discovery', 'space', 'physics'],
-    health: ['health', 'medical', 'medicine', 'healthcare', 'disease', 'treatment']
+    ai: [
+      'artificial intelligence',
+      'machine learning',
+      'llm',
+      'gpt',
+      'deep learning',
+      'neural network',
+      'ai model',
+      'openai',
+      'anthropic',
+      'deepmind',
+      'large language model',
+      'computer vision'
+    ],
+    robotics: [
+      'robotics',
+      'automation',
+      'autonomous',
+      'robot',
+      'self-driving',
+      'industrial automation',
+      'boston dynamics',
+      'manufacturing',
+      'warehouse automation',
+      'tesla',
+      'automated',
+      'drone'
+    ],
+    biotech: [
+      'biotech',
+      'biotechnology',
+      'crispr',
+      'gene editing',
+      'drug discovery',
+      'synthetic biology',
+      'genomics',
+      'moderna',
+      'ginkgo bioworks',
+      'longevity',
+      'clinical trial',
+      'pharmaceutical',
+      'vaccine'
+    ]
   };
 
   const text = `${article.title} ${article.description || ''} ${article.content || ''}`.toLowerCase();
 
+  // First try exact category matches if the article has a category
+  if (article.category) {
+    const normalizedCategory = article.category.toLowerCase();
+    for (const [category, keywords] of Object.entries(categoryKeywords)) {
+      if (keywords.some(keyword => normalizedCategory.includes(keyword))) {
+        return category as Category;
+      }
+    }
+  }
+
+  // Then try keyword matching in the full text
   for (const [category, keywords] of Object.entries(categoryKeywords) as [Category, string[]][]) {
     if (keywords.some(keyword => text.includes(keyword))) {
       return category;
     }
-  }
-
-  // If no category is found, try to use the article's category if available
-  if (article.category && CATEGORIES.includes(article.category as Category)) {
-    return article.category as Category;
   }
 
   return null;

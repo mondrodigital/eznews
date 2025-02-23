@@ -1,7 +1,11 @@
+export type Category = 'ai' | 'robotics' | 'biotech';
+
+export type TimeSlot = '10AM' | '3PM' | '8PM';
+
 export interface NewsItem {
   id: string;
   timestamp: Date;
-  category: string;
+  category: Category;
   headline: string;
   content: string;
   source: string;
@@ -10,17 +14,12 @@ export interface NewsItem {
 }
 
 export interface TimeBlock {
-  time: string;
+  time: TimeSlot;
   date: string;
   stories: NewsItem[];
 }
 
-export type NewsCategory = 'tech' | 'finance' | 'science' | 'health';
-
-export const CATEGORIES: NewsCategory[] = ['tech', 'finance', 'science', 'health'];
-
 export const TIME_SLOTS = ['10AM', '3PM', '8PM'] as const;
-export type TimeSlot = typeof TIME_SLOTS[number];
 
 // Mapping categories to NewsAPI topics
 export const CATEGORY_MAPPING = {

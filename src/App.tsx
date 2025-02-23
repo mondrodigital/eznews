@@ -8,10 +8,9 @@ console.log('App initializing...');
 
 const categories = [
   { id: 'all', name: 'All', emoji: '🗞️' },
-  { id: 'tech', name: 'Tech', emoji: '⚡' },
-  { id: 'finance', name: 'Finance', emoji: '📈' },
-  { id: 'science', name: 'Science', emoji: '🔭' },
-  { id: 'health', name: 'Health', emoji: '⚕️' }
+  { id: 'ai', name: 'AI & ML', emoji: '🤖' },
+  { id: 'robotics', name: 'Robotics & Automation', emoji: '🦾' },
+  { id: 'biotech', name: 'Biotech', emoji: '🧬' }
 ];
 
 function getDefaultTimeSlot(): TimeSlot {
