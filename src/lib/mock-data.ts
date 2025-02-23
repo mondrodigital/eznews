@@ -1,47 +1,39 @@
-import { TimeBlock, NewsItem, TimeSlot } from './types';
+import { TimeBlock, NewsItem, TimeSlot, Category } from './types';
 
-const createMockStories = (timeSlot: TimeSlot): NewsItem[] => [
-  {
-    id: '1',
-    timestamp: new Date(),
-    category: 'tech',
-    headline: 'AI Breakthrough in Natural Language Processing',
-    content: 'Scientists have developed a new AI model that demonstrates unprecedented language understanding capabilities.\n\nThe model shows remarkable ability to process and generate human-like text while requiring significantly less computational power.\n\nEarly tests indicate potential applications in education, healthcare, and scientific research.\n\nResearchers emphasize the importance of ethical considerations in deployment.',
-    source: 'Tech Daily',
-    image: 'https://placehold.co/600x400?text=Tech+News',
-    originalUrl: 'https://example.com/tech-news'
-  },
-  {
-    id: '2',
-    timestamp: new Date(),
-    category: 'finance',
-    headline: 'Global Markets Show Strong Recovery',
-    content: 'Stock markets worldwide have shown remarkable resilience with a strong recovery in major indices.\n\nInvestors are showing renewed confidence in technology and renewable energy sectors.\n\nAnalysts point to improving economic indicators and positive corporate earnings.\n\nExperts suggest maintaining a diversified portfolio approach.',
-    source: 'Financial Times',
-    image: 'https://placehold.co/600x400?text=Finance+News',
-    originalUrl: 'https://example.com/finance-news'
-  },
-  {
-    id: '3',
-    timestamp: new Date(),
-    category: 'science',
-    headline: 'Quantum Teleportation Breakthrough Paves Way for Quantum Internet',
-    content: 'Researchers have achieved stable quantum teleportation over a distance of 100 kilometers, marking a major milestone in quantum computing.\n\nThe achievement uses a new type of quantum entanglement that remains stable at room temperature, solving one of the field\'s biggest challenges.\n\nThis breakthrough could enable the creation of a quantum internet, offering unprecedented security and computing capabilities.\n\nExperts suggest the first practical applications could be implemented within the next decade.',
-    source: 'Nature',
-    image: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb',
-    originalUrl: 'https://www.nature.com/subjects/quantum-physics'
-  },
-  {
-    id: '4',
-    timestamp: new Date(),
-    category: 'health',
-    headline: 'New Treatment Shows Promise in Reversing Aging Process',
-    content: 'A groundbreaking study has demonstrated the first successful treatment for reversing cellular aging in human trials.\n\nThe treatment, which combines gene therapy with targeted protein modification, showed significant results in restoring cellular function in elderly participants.\n\nWhile not a "fountain of youth," researchers say the treatment could help prevent age-related diseases and maintain health longer.\n\nClinical trials are expanding, with potential widespread availability within five years pending regulatory approval.',
-    source: 'Science Magazine',
-    image: 'https://images.unsplash.com/photo-1579165466741-7f35e4755182',
-    originalUrl: 'https://www.science.org/topic/medicine'
-  }
-];
+export function createMockStories(): NewsItem[] {
+  return [
+    {
+      id: '1',
+      timestamp: new Date(),
+      category: 'ai',
+      headline: 'Revolutionary AI Model Achieves Human-Level Understanding',
+      content: 'A groundbreaking artificial intelligence model has demonstrated unprecedented capabilities in natural language understanding and generation.\n\nResearchers at leading tech institutions have developed a neural network that can process and respond to complex queries with human-like comprehension and nuance. The system shows remarkable ability to understand context and maintain coherent, multi-turn conversations.\n\nExperts suggest this advancement could revolutionize fields from healthcare to education, while emphasizing the importance of ethical deployment and careful consideration of societal impacts.',
+      source: 'TechCrunch',
+      image: 'https://placehold.co/600x400/2563eb/ffffff?text=AI+News',
+      originalUrl: 'https://example.com/tech-news'
+    },
+    {
+      id: '2',
+      timestamp: new Date(),
+      category: 'robotics',
+      headline: 'Boston Dynamics Unveils Next-Generation Industrial Robot',
+      content: 'Boston Dynamics has revealed their latest industrial automation solution, combining advanced mobility with precise manipulation capabilities.\n\nThe new robot demonstrates unprecedented agility in complex manufacturing environments, capable of navigating tight spaces while performing intricate assembly tasks. Early trials show significant improvements in production efficiency.\n\nIndustry experts predict this development could transform manufacturing processes across multiple sectors.',
+      source: 'Wired',
+      image: 'https://placehold.co/600x400/059669/ffffff?text=Robotics+News',
+      originalUrl: 'https://example.com/robotics-news'
+    },
+    {
+      id: '3',
+      timestamp: new Date(),
+      category: 'biotech',
+      headline: 'Breakthrough in CRISPR Gene Editing Technology',
+      content: 'Scientists have achieved a major breakthrough in CRISPR gene editing technology, developing a more precise and efficient method for genetic modifications.\n\nThe new technique shows significantly reduced off-target effects while maintaining high editing efficiency. This advancement could accelerate the development of genetic therapies for various diseases.\n\nResearchers are already planning clinical trials to test applications in treating genetic disorders.',
+      source: 'Nature',
+      image: 'https://placehold.co/600x400/dc2626/ffffff?text=Biotech+News',
+      originalUrl: 'https://example.com/biotech-news'
+    }
+  ];
+}
 
 export function initializeMockData() {
   console.log('Initializing mock data...');
@@ -63,7 +55,7 @@ export function initializeMockData() {
         month: 'numeric', 
         year: '2-digit'
       }).replace(/\//g, ' '),
-      stories: createMockStories(timeSlot)
+      stories: createMockStories()
     };
 
     try {

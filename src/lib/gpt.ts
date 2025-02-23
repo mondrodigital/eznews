@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 import { NewsAPIArticle } from './news';
-import { NewsItem, NewsCategory } from './types';
+import { NewsItem, NewsCategory, Category } from './types';
 import { serverEnv } from './server-env';
 
 // Initialize OpenAI client lazily
@@ -12,7 +12,8 @@ function getOpenAIClient() {
       throw new Error('OPENAI_API_KEY environment variable is not set');
     }
     openai = new OpenAI({
-      apiKey: serverEnv.OPENAI_API_KEY
+      apiKey: serverEnv.OPENAI_API_KEY,
+      dangerouslyAllowBrowser: true
     });
   }
   return openai;
@@ -140,4 +141,29 @@ Source: ${article.source.name}
   // Convert escaped newlines back to actual newlines
   result.content = result.content.replace(/\\n/g, '\n');
   return result;
+}
+
+export async function processArticleWithGPT(article: NewsItem): Promise<string> {
+  try {
+    const completion = await getOpenAIClient().chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: [
+        {
+          role: "system",
+          content: "You are a helpful assistant that processes news articles. Take the article and rewrite it in a clear, engaging style while preserving all key information. Format with paragraphs separated by newlines."
+        },
+        {
+          role: "user",
+          content: article.content
+        }
+      ],
+      max_tokens: 250,
+      temperature: 0.7,
+    });
+
+    return completion.choices[0]?.message?.content || article.content;
+  } catch (error) {
+    console.error('Error processing article with GPT:', error);
+    return article.content;
+  }
 } 

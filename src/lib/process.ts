@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { NewsItem, NewsCategory, TimeSlot, CATEGORIES } from './types';
+import { NewsItem, NewsCategory, TimeSlot, CATEGORIES, Category } from './types';
 import { fetchNewsForCategory, NewsAPIArticle } from './news';
 import { selectMostIntriguingArticle, rewriteArticle } from './gpt';
 import { storeTimeBlock } from './storage';
@@ -91,4 +91,62 @@ export function shouldProcess(timeSlot: TimeSlot): boolean {
     default:
       return false;
   }
+}
+
+export function determineCategory(article: NewsAPIArticle): Category | null {
+  const categoryKeywords: Record<Category, string[]> = {
+    ai: [
+      'artificial intelligence',
+      'machine learning',
+      'llm',
+      'gpt',
+      'deep learning',
+      'neural network',
+      'ai model',
+      'openai',
+      'anthropic',
+      'deepmind',
+      'large language model',
+      'computer vision'
+    ],
+    robotics: [
+      'robotics',
+      'automation',
+      'autonomous',
+      'robot',
+      'self-driving',
+      'industrial automation',
+      'boston dynamics',
+      'manufacturing',
+      'warehouse automation',
+      'tesla',
+      'automated',
+      'drone'
+    ],
+    biotech: [
+      'biotech',
+      'biotechnology',
+      'crispr',
+      'gene editing',
+      'drug discovery',
+      'synthetic biology',
+      'genomics',
+      'moderna',
+      'ginkgo bioworks',
+      'longevity',
+      'clinical trial',
+      'pharmaceutical',
+      'vaccine'
+    ]
+  };
+
+  const text = `${article.title} ${article.description || ''} ${article.content || ''}`.toLowerCase();
+
+  for (const [category, keywords] of Object.entries(categoryKeywords) as [Category, string[]][]) {
+    if (keywords.some(keyword => text.includes(keyword))) {
+      return category;
+    }
+  }
+
+  return null;
 } 
