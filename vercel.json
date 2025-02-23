@@ -31,5 +31,11 @@
       "src": "/(.*)",
       "dest": "/$1"
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/news?timeSlot=10AM&force=true",
+      "schedule": "0 10 * * *"
+    }
   ]
 } 

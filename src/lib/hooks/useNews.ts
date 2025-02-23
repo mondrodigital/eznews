@@ -1,51 +1,66 @@
 import { useState, useEffect } from 'react';
 import { TimeSlot, TimeBlock } from '../types';
-import { clearNewsCache } from '../storage';
+
+function isTimeSlotAvailable(timeSlot: TimeSlot): boolean {
+  const now = new Date();
+  const hour = now.getHours();
+
+  switch (timeSlot) {
+    case '10AM':
+      return hour >= 10;
+    case '3PM':
+      return hour >= 15;
+    case '8PM':
+      return hour >= 20;
+    default:
+      return false;
+  }
+}
 
 export function useNews(timeSlot: TimeSlot) {
   const [timeBlock, setTimeBlock] = useState<TimeBlock | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isAvailable, setIsAvailable] = useState(false);
+
+  useEffect(() => {
+    // Check if this time slot should be available
+    setIsAvailable(isTimeSlotAvailable(timeSlot));
+
+    // Set up interval to check availability
+    const interval = setInterval(() => {
+      setIsAvailable(isTimeSlotAvailable(timeSlot));
+    }, 60000); // Check every minute
+
+    return () => clearInterval(interval);
+  }, [timeSlot]);
 
   useEffect(() => {
     let mounted = true;
 
     async function fetchNews() {
+      if (!isAvailable) {
+        setTimeBlock(null);
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
         setError(null);
         console.log('useNews: Fetching news for time slot:', timeSlot);
         
-        // Clear client-side cache
-        await clearNewsCache();
-        
         // Force fresh fetch with cache busting
         const timestamp = Date.now();
-        
-        // Use relative URL in production, full URL in development
-        const apiUrl = `/api/news?timeSlot=${timeSlot}&force=true&_=${timestamp}`;
-        console.log('Fetching from:', apiUrl);
+        const apiUrl = `/api/news?timeSlot=${timeSlot}&_=${timestamp}`;
         
         const response = await fetch(apiUrl);
-        console.log('API Response status:', response.status);
         
         if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: 'Failed to parse error response' }));
-          throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+          throw new Error(`HTTP error! status: ${response.status}`);
         }
         
-        const text = await response.text();
-        console.log('API Response text:', text);
-        
-        let data;
-        try {
-          data = JSON.parse(text);
-        } catch (e) {
-          console.error('Failed to parse API response:', e);
-          throw new Error('Invalid response from server');
-        }
-        
-        console.log('API Response data:', data);
+        const data = await response.json();
         
         if (!mounted) return;
 
@@ -79,15 +94,7 @@ export function useNews(timeSlot: TimeSlot) {
         if (mounted) {
           const errorMessage = err instanceof Error ? err.message : 'Failed to load news';
           setError(errorMessage);
-          setTimeBlock({
-            time: timeSlot,
-            date: new Date().toLocaleDateString('en-US', { 
-              day: 'numeric', 
-              month: 'numeric', 
-              year: '2-digit'
-            }).replace(/\//g, ' '),
-            stories: []
-          });
+          setTimeBlock(null);
         }
       } finally {
         if (mounted) {
@@ -101,7 +108,7 @@ export function useNews(timeSlot: TimeSlot) {
     return () => {
       mounted = false;
     };
-  }, [timeSlot]);
+  }, [timeSlot, isAvailable]);
 
-  return { timeBlock, loading, error };
+  return { timeBlock, loading, error, isAvailable };
 } 

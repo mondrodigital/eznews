@@ -1,6 +1,13 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { Category, CATEGORIES, TimeSlot, Story } from './types';
+import { createClient } from '@supabase/supabase-js';
 import { CATEGORY_QUERIES } from './lib/constants';
+
+// Initialize Supabase client
+const supabase = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_ANON_KEY!
+);
 
 // CORS headers
 const CORS_HEADERS = {
@@ -9,22 +16,10 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
-// Cache for daily news
-let dailyNewsCache: Story[] | null = null;
-let lastFetchDate: string | null = null;
-
 // Get today's date in YYYY-MM-DD format
 function getTodayKey(): string {
   const now = new Date();
   return now.toISOString().split('T')[0];
-}
-
-// Check if we need to fetch fresh news
-function shouldFetchFreshNews(): boolean {
-  if (!lastFetchDate || lastFetchDate !== getTodayKey()) {
-    return true;
-  }
-  return false;
 }
 
 // Fetch news for a specific category
@@ -89,15 +84,44 @@ async function fetchDailyNews(): Promise<Story[]> {
       allStories.push(...stories);
     } catch (error) {
       console.error(`Error fetching ${category} news:`, error);
-      // Continue with other categories even if one fails
     }
   }
   
-  // Update cache
-  dailyNewsCache = allStories;
-  lastFetchDate = getTodayKey();
+  // Store in Supabase
+  const today = getTodayKey();
+  const { error } = await supabase
+    .from('news_cache')
+    .upsert({
+      key: `daily_news_${today}`,
+      data: { stories: allStories },
+      created_at: new Date().toISOString()
+    });
+
+  if (error) {
+    console.error('Error storing in Supabase:', error);
+  }
   
   return allStories;
+}
+
+// Get stories for a specific time slot
+async function getStoriesForTimeSlot(timeSlot: TimeSlot): Promise<Story[]> {
+  const today = getTodayKey();
+  
+  // Try to get from Supabase first
+  const { data: cacheData, error: cacheError } = await supabase
+    .from('news_cache')
+    .select('data')
+    .eq('key', `daily_news_${today}`)
+    .single();
+
+  if (cacheError || !cacheData) {
+    console.log('No cached news found, fetching fresh news...');
+    const stories = await fetchDailyNews();
+    return distributeStories(stories, timeSlot);
+  }
+
+  return distributeStories(cacheData.data.stories, timeSlot);
 }
 
 // Distribute stories across time slots
@@ -130,9 +154,6 @@ export default async function handler(
     res.setHeader(key, value);
   });
 
-  // Set content type to JSON
-  res.setHeader('Content-Type', 'application/json');
-
   // Handle OPTIONS request
   if (req.method === 'OPTIONS') {
     res.status(200).end();
@@ -149,9 +170,12 @@ export default async function handler(
   }
 
   try {
-    // Check for API key
+    // Check for required environment variables
     if (!process.env.NEWS_API_KEY) {
       throw new Error('NEWS_API_KEY environment variable is not set');
+    }
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
+      throw new Error('Supabase environment variables are not set');
     }
 
     // Validate time slot
@@ -164,35 +188,14 @@ export default async function handler(
       return;
     }
 
-    // Check if we need to fetch fresh news
-    if (shouldFetchFreshNews()) {
-      console.log('Fetching fresh daily news...');
+    // Force refresh if requested
+    const forceRefresh = req.query.force === 'true';
+    if (forceRefresh) {
       await fetchDailyNews();
     }
 
-    // If we don't have cached news, fetch it
-    if (!dailyNewsCache) {
-      console.log('No cached news found, fetching...');
-      await fetchDailyNews();
-    }
-
-    // Ensure we have news to distribute
-    if (!dailyNewsCache || dailyNewsCache.length === 0) {
-      res.status(500).json({
-        status: 'error',
-        error: 'No news available'
-      });
-      return;
-    }
-
-    // Distribute stories for the requested time slot
-    const stories = distributeStories(dailyNewsCache, timeSlot);
-
-    // Format timestamps to ensure they're serializable
-    const formattedStories = stories.map(story => ({
-      ...story,
-      timestamp: story.timestamp.toISOString()
-    }));
+    // Get stories for the requested time slot
+    const stories = await getStoriesForTimeSlot(timeSlot);
 
     // Return the response
     res.status(200).json({
@@ -203,7 +206,10 @@ export default async function handler(
         month: 'numeric',
         year: '2-digit'
       }).replace(/\//g, ' '),
-      stories: formattedStories
+      stories: stories.map(story => ({
+        ...story,
+        timestamp: story.timestamp.toISOString()
+      }))
     });
   } catch (error) {
     console.error('API Error:', error);
