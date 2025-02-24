@@ -18,7 +18,7 @@ async function fetchCategoryNews(category: Category): Promise<Story[]> {
     }
 
     const response = await fetch(
-      `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&language=en&sortBy=publishedAt&pageSize=5`,
+      `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&language=en&sortBy=publishedAt&pageSize=4`,
       {
         headers: {
           'X-Api-Key': process.env.NEWS_API_KEY

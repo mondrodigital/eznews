@@ -134,11 +134,11 @@ function distributeStories(stories: Story[], timeSlot: TimeSlot): Story[] {
   // Get a subset of stories based on time slot
   const storiesPerSlot = Math.ceil(stories.length / 3);
   switch (timeSlot) {
-    case '10AM':
+    case '8AM':
       return sortedStories.slice(0, storiesPerSlot);
-    case '3PM':
+    case '12PM':
       return sortedStories.slice(storiesPerSlot, storiesPerSlot * 2);
-    case '8PM':
+    case '4PM':
       return sortedStories.slice(storiesPerSlot * 2);
     default:
       return [];
@@ -180,7 +180,7 @@ export default async function handler(
 
     // Validate time slot
     const timeSlot = req.query.timeSlot as TimeSlot;
-    if (!timeSlot || !['10AM', '3PM', '8PM'].includes(timeSlot)) {
+    if (!timeSlot || !['8AM', '12PM', '4PM'].includes(timeSlot)) {
       res.status(400).json({
         status: 'error',
         error: 'Invalid time slot'
