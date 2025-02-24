@@ -17,7 +17,8 @@
     "test:supabase": "tsx src/scripts/test-supabase.ts",
     "test:frontend": "tsx src/scripts/test-frontend.ts",
     "test:all": "npm run test:api && npm run test:supabase && npm run test:frontend",
-    "seed": "tsx src/scripts/seed-data.ts"
+    "seed": "tsx src/scripts/seed-data.ts",
+    "report": "tsx src/scripts/test-report.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.7",
