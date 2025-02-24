@@ -7,11 +7,17 @@
     ".": "./dist/index.js"
   },
   "scripts": {
-    "dev": "vite",
+    "dev": "concurrently \"vite\" \"npm run api\"",
+    "api": "tsx api/server.ts",
     "build": "tsc && vite build",
     "vercel-build": "tsc && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:api": "tsx src/scripts/test-api.ts",
+    "test:supabase": "tsx src/scripts/test-supabase.ts",
+    "test:frontend": "tsx src/scripts/test-frontend.ts",
+    "test:all": "npm run test:api && npm run test:supabase && npm run test:frontend",
+    "seed": "tsx src/scripts/seed-data.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.7",

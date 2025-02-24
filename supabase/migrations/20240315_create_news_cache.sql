@@ -5,21 +5,11 @@ create table if not exists news_cache (
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
--- Add RLS (Row Level Security) policies
-alter table news_cache enable row level security;
+-- Disable RLS temporarily
+alter table news_cache disable row level security;
 
--- Allow anonymous access for read/write since this is just a cache
-create policy "Allow anonymous read access"
-  on news_cache for select
-  to anon
-  using (true);
+-- Create index for faster key lookups
+create index if not exists news_cache_key_idx on news_cache (key);
 
-create policy "Allow anonymous write access"
-  on news_cache for insert
-  to anon
-  with check (true);
-
-create policy "Allow anonymous delete access"
-  on news_cache for delete
-  to anon
-  using (true); 
+-- Create index for timestamp-based queries
+create index if not exists news_cache_created_at_idx on news_cache (created_at); 

@@ -2,17 +2,30 @@ import { NewsItem, TimeSlot, TimeBlock } from './types';
 import OpenAI from 'openai';
 
 // In production, API requests will be made to the same domain
-const API_URL = '';  // Empty string means same domain, which works for both dev and prod
+const API_URL = process.env.NODE_ENV === 'production' 
+  ? '' // Empty string for production (same domain)
+  : 'http://localhost:3000'; // Development API URL
+
+// Environment check that works in both browser and Node.js
+const getEnvVar = (key: string): string | undefined => {
+  if (typeof process !== 'undefined' && process.env) {
+    return process.env[key];
+  }
+  if (typeof window !== 'undefined' && (window as any).__ENV) {
+    return (window as any).__ENV[key];
+  }
+  return undefined;
+};
 
 console.log('Environment check:', {
-  hasNewsApiKey: !!import.meta.env.VITE_NEWS_API_KEY,
-  hasOpenAiKey: !!import.meta.env.VITE_OPENAI_API_KEY,
+  hasNewsApiKey: !!getEnvVar('VITE_NEWS_API_KEY'),
+  hasOpenAiKey: !!getEnvVar('VITE_OPENAI_API_KEY'),
   apiUrl: API_URL,
-  isProd: import.meta.env.PROD
+  isProd: process.env.NODE_ENV === 'production'
 });
 
 const openai = new OpenAI({
-  apiKey: import.meta.env.VITE_OPENAI_API_KEY,
+  apiKey: getEnvVar('VITE_OPENAI_API_KEY'),
   dangerouslyAllowBrowser: true
 });
 
