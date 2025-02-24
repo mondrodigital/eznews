@@ -16,7 +16,12 @@
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "/api/$1.ts"
+      "dest": "/api/$1.ts",
+      "headers": {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type"
+      }
     },
     {
       "handle": "filesystem"
@@ -35,6 +40,14 @@
     {
       "path": "/api/news?timeSlot=10AM&force=true",
       "schedule": "0 10 * * *"
+    },
+    {
+      "path": "/api/news?timeSlot=3PM&force=true",
+      "schedule": "0 15 * * *"
+    },
+    {
+      "path": "/api/news?timeSlot=8PM&force=true",
+      "schedule": "0 20 * * *"
     }
   ]
 } 
