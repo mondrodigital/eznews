@@ -213,10 +213,19 @@ export default async function handler(
     });
   } catch (error) {
     console.error('API Error:', error);
+    const errorDetails = error instanceof Error 
+      ? {
+          message: error.message,
+          stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+          name: error.name
+        }
+      : { message: 'Unknown error' };
+    
     res.status(500).json({
       status: 'error',
       error: 'Internal server error',
-      message: error instanceof Error ? error.message : 'Unknown error'
+      details: errorDetails,
+      timestamp: new Date().toISOString()
     });
   }
 } 
