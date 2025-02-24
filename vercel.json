@@ -38,16 +38,8 @@
   ],
   "crons": [
     {
-      "path": "/api/news?timeSlot=10AM&force=true",
-      "schedule": "0 10 * * *"
-    },
-    {
-      "path": "/api/news?timeSlot=3PM&force=true",
-      "schedule": "0 15 * * *"
-    },
-    {
-      "path": "/api/news?timeSlot=8PM&force=true",
-      "schedule": "0 20 * * *"
+      "path": "/api/cron",
+      "schedule": "0 5 * * *"
     }
   ]
 } 

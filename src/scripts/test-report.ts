@@ -6,7 +6,9 @@ import { TimeSlot } from '../lib/types';
 config({ path: resolve(process.cwd(), '.env') });
 
 // Use Vercel URL in production, localhost in development
-const API_URL = 'https://eznews.vercel.app';
+const API_URL = process.env.NODE_ENV === 'production' 
+  ? 'https://eznews-orcin.vercel.app'
+  : 'http://localhost:3000';
 
 async function fetchNewsForTimeSlot(timeSlot: TimeSlot) {
   console.log(`\nFetching news for ${timeSlot}...`);
